@@ -162,7 +162,7 @@ done
 
 breseq_command+=" -o /home/ark/MAB/breseq/$output_id/$output_name"
 
-breseq_command+=" -j 8 --brief-html-output"
+breseq_command+=" -j 24 --brief-html-output"
 
 # Add junction-only reference files to the command
 for junction_ref in "${junction_reference_files[@]}"; do
