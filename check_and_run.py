@@ -8,7 +8,7 @@ import subprocess
 # S3 bucket name and folder prefix
 BUCKET_NAME = 'breseqbucket'
 FOLDER_PREFIX = 'breseq-'
-LOG_FILE = 'processed_folders.log'
+LOG_FILE = '/home/ark/MAB/breseq/processed_folders.log'
 
 # Initialize S3 client (using default credentials)
 s3 = boto3.client('s3')
