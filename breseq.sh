@@ -5,24 +5,24 @@ conda activate base  # Activate the base environment where `boto3` is installed
 exec > >(tee -i /home/ark/MAB/breseq/breseq_looper.log)
 exec 2>&1
 
-# Debugging information
-echo "Script started at $(date)"
-echo "Current directory: $(pwd)"
-echo "Environment variables: $(env)"
+## Debugging information
+#echo "Script started at $(date)"
+#echo "Current directory: $(pwd)"
+#echo "Environment variables: $(env)"
 
 eval "$(/home/ark/miniconda3/bin/conda shell.bash hook)"
 conda activate base  # Activate the base environment where `boto3` is installed
 
 # Debug PATH
-echo "Updated PATH: $PATH"
+#echo "Updated PATH: $PATH"
 
 # Debug Python environment
-echo "Python version being used:"
-which python3
-python3 --version
-
-echo "Python modules installed:"
-python3 -m pip list
+#echo "Python version being used:"
+#which python3
+#python3 --version
+#
+#echo "Python modules installed:"
+#python3 -m pip list
 
 KEY=$1
 ID=$KEY
