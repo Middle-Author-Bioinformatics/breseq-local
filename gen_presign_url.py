@@ -7,10 +7,11 @@ from botocore.config import Config
 import pyshorteners
 
 # Initialize S3 client
-s3 = boto3.client('s3', aws_access_key_id='YOUR_ACCESS_KEY',
-    aws_secret_access_key='YOUR_SECRET_KEY',
-    aws_session_token='YOUR_SESSION_TOKEN', region_name='us-east-2')
+# s3 = boto3.client('s3', aws_access_key_id='YOUR_ACCESS_KEY',
+#     aws_secret_access_key='YOUR_SECRET_KEY',
+#     aws_session_token='YOUR_SESSION_TOKEN', region_name='us-east-2')
 
+s3 = boto3.client('s3', region_name='us-east-2')
 
 def shorten_url(long_url):
     try:

@@ -1,7 +1,7 @@
-eval "$(/home/ec2-user/miniconda3/bin/conda shell.bash hook)"
+eval "$(/home/ark/miniconda3/bin/conda shell.bash hook)"
 conda activate base  # Activate the base environment where `boto3` is installed
 
-exec > >(tee -i /home/ec2-user/log/breseq_looper.log)
+exec > >(tee -i /home/ark/MAB/breseq/breseq_looper.log)
 exec 2>&1
 
 # Debugging information
@@ -9,7 +9,7 @@ echo "Script started at $(date)"
 echo "Current directory: $(pwd)"
 echo "Environment variables: $(env)"
 
-eval "$(/home/ec2-user/miniconda3/bin/conda shell.bash hook)"
+eval "$(/home/ark/miniconda3/bin/conda shell.bash hook)"
 conda activate base  # Activate the base environment where `boto3` is installed
 
 # Debug PATH
@@ -25,16 +25,9 @@ python3 -m pip list
 
 KEY=$1
 ID=$KEY
-DIR=/home/ec2-user/process/${ID}
-OUT=/home/ec2-user/completed/${ID}
+DIR=/home/ark/MAB/breseq/${ID}
+OUT=/home/ark/MAB/breseq/completed/${ID}
 
-# Step 1: download all new files from S3
-python3 /home/ec2-user/bin/AWS-EC2-script/pullall.py --bucket breseqbucket --destination /home/ec2-user/process/ --prefix $KEY
-if [ $? -ne 0 ]; then
-    echo "Error: pullall.py failed."
-    conda deactivate
-    exit 1
-fi
 
 name=$(grep 'Name' ${DIR}/form-data.txt | cut -d ' ' -f2)
 email=$(grep 'Email' ${DIR}/form-data.txt | cut -d ' ' -f2)
@@ -48,12 +41,12 @@ if [ -z "$mode" ]; then
 fi
 
 # Verify email
-result=$(python3 /home/ec2-user/bin/AWS-EC2-script/check_email.py --email ${email})
+result=$(python3 /home/ark/MAB/bin/breseq-local/check_email.py --email ${email})
 echo $result
 
 # Set PATH to include Conda and script locations
-export PATH="/home/ec2-user/miniconda3/bin:/usr/local/bin:/usr/bin:/bin:/home/ec2-user/bin:$PATH"
-eval "$(/home/ec2-user/miniconda3/bin/conda shell.bash hook)"
+export PATH="/home/ark/miniconda3/bin:/usr/local/bin:/usr/bin:/bin:/home/ark/MAB/bin/breseq-local:$PATH"
+eval "$(/home/ark/miniconda3/bin/conda shell.bash hook)"
 conda activate breseq_env
 
 if [ $? -ne 0 ]; then
@@ -64,8 +57,8 @@ sleep 5
 
 # Run Breseq
 # **************************************************************************************************
-mkdir -p /home/ec2-user/completed/${ID}
-/home/ec2-user/bin/AWS-EC2-script/generate_commands_for_samples.sh ${DIR}/${metadata} ${DIR}/form-data.txt ${DIR}/commands ${platform} ${ID}
+mkdir -p /home/ark/MAB/breseq/completed/${ID}
+/home/ark/MAB/bin/breseq-local/generate_commands_for_samples.sh ${DIR}/${metadata} ${DIR}/form-data.txt ${DIR}/commands ${platform} ${ID}
 for file in ${DIR}/commands/command-*; do
     bash $file
 done
@@ -73,11 +66,11 @@ done
 mkdir -p ${OUT}/Combined_Summary
 mkdir -p ${OUT}/analysis
 for i in ${OUT}/breseq_*; do
-    /home/ec2-user/bin/AWS-EC2-script/breseq_parser.py -b ${i} -o ${OUT}/Combined_Summary -gbk ${DIR}/${ref} -m ${mode}
-    /home/ec2-user/bin/AWS-EC2-script/breseq_plotter.py ${i} ${OUT}/analysis
+    /home/ark/MAB/bin/breseq-local/breseq_parser.py -b ${i} -o ${OUT}/Combined_Summary -gbk ${DIR}/${ref} -m ${mode}
+    /home/ark/MAB/bin/breseq-local//breseq_plotter.py ${i} ${OUT}/analysis
 done
 # **************************************************************************************************
-/home/ec2-user/bin/AWS-EC2-script/breseq_combiner.py -i ${OUT}/Combined_Summary -m ${mode}
+/home/ark/MAB/bin/breseq-local/breseq_combiner.py -i ${OUT}/Combined_Summary -m ${mode}
 # **************************************************************************************************
 # **************************************************************************************************
 # **************************************************************************************************
@@ -90,27 +83,27 @@ conda deactivate
 sleep 5
 
 # Removing misc output files
-mv ${OUT} /home/ec2-user/tmp/${ID}
-mkdir /home/ec2-user/completed/${ID}
-for i in /home/ec2-user/tmp/${ID}/breseq_*; do
+mv ${OUT} /home/ark/MAB/breseq/tmp/${ID}
+mkdir /home/ark/MAB/breseq/completed/${ID}
+for i in /home/ark/MAB/breseq/tmp/${ID}/breseq_*; do
     sample=$(basename $i)
-    mv $i/output /home/ec2-user/completed/${ID}/${sample}
+    mv $i/output /home/ark/MAB/breseq/completed/${ID}/${sample}
 done
 
-mv /home/ec2-user/tmp/${ID}/Combined_Summary /home/ec2-user/completed/${ID}/
-#rm -rf /home/ec2-user/tmp/${ID}
+mv /home/ark/MAB/breseq/tmp/${ID}/Combined_Summary /home/ark/MAB/breseq/completed/${ID}/
+#rm -rf /home/ark/MAB/breseq/tmp/${ID}
 
 # Archive results
-tar -cf /home/ec2-user/completed/${ID}.tar /home/ec2-user/completed/${ID} && gzip /home/ec2-user/completed/${ID}.tar
+tar -cf /home/ark/MAB/breseq/completed/${ID}.tar /home/ark/MAB/breseq/completed/${ID} && gzip /home/ark/MAB/breseq/completed/${ID}.tar
 
 # Upload results to S3 and generate presigned URL
-results_tar="/home/ec2-user/completed/${ID}.tar.gz"
+results_tar="/home/ark/MAB/breseq/completed/${ID}.tar.gz"
 s3_key="${ID}.tar.gz"
-python3 /home/ec2-user/bin/AWS-EC2-script/push.py --bucket binfo-dump --output_key ${s3_key} --source ${results_tar}
-url=$(python3 /home/ec2-user/bin/AWS-EC2-script/gen_presign_url.py --bucket binfo-dump --key ${s3_key} --expiration 86400)
+python3 /home/ark/MAB/bin/breseq-local/push.py --bucket binfo-dump --output_key ${s3_key} --source ${results_tar}
+url=$(python3 /home/ark/MAB/bin/breseq-local/gen_presign_url.py --bucket binfo-dump --key ${s3_key} --expiration 86400)
 
 # Send email
-python3 /home/ec2-user/bin/AWS-EC2-script/send_email.py \
+python3 /home/ark/MAB/bin/breseq-local/send_email.py \
     --sender ark@midauthorbio.com \
     --recipient ${email} \
     --subject "Your Breseq Results!" \

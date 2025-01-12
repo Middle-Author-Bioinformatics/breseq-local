@@ -84,7 +84,7 @@ def process_folder(folder_name):
     # Run breseq.sh script with folder_name as argument
     breseq_script_path = '/home/ark/MAB/bin/breseq-local/breseq.sh'
     try:
-        subprocess.run([breseq_script_path, local_dir], check=True)
+        subprocess.run([breseq_script_path, folder_name], check=True)
         print(f"Successfully processed folder {folder_name} using breseq.sh.")
     except subprocess.CalledProcessError as e:
         print(f"Error running breseq.sh on folder {folder_name}: {e}")

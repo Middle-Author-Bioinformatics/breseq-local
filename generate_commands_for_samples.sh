@@ -3,8 +3,8 @@
 # Paths to input files and script
 metadata_file=$1
 form_data_template=$2
-generate_command_script="/home/ec2-user/bin/AWS-EC2-script/generate_breseq_command.sh"
-generate_command_script_nanopore="/home/ec2-user/bin/AWS-EC2-script/generate_breseq_command_nanopore.sh"
+generate_command_script="/home/ark/MAB/bin/breseq-local/generate_breseq_command.sh"
+generate_command_script_nanopore="/home/ark/MAB/bin/breseq-local/generate_breseq_command_nanopore.sh"
 platform=$4
 id=$5
 # Output directory for generated commands
