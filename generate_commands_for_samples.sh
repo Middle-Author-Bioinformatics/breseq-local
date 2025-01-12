@@ -21,7 +21,7 @@ awk '{ sub("\r$", ""); print }' "$metadata_file" | tail -n +2 | while IFS=, read
     cp "$form_data_template" "$sample_form_data"
 
     # Append the sample-specific read libraries to form-data.txt
-    echo "Input File: /home/ec2-user/process/${id}/${read1} /home/ec2-user/process/${id}/${read2}" >> "$sample_form_data"
+    echo "Input File: /home/ark/MAB/breseq/${id}/${read1} /home/ark/MAB/breseq/${id}/${read2}" >> "$sample_form_data"
 
     # Append the sample-specific name parameter to form-data.txt
     echo "name: breseq_${sample_name}" >> "$sample_form_data"

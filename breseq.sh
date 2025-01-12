@@ -68,7 +68,7 @@ mkdir -p ${OUT}/Combined_Summary
 mkdir -p ${OUT}/analysis
 for i in ${OUT}/breseq_*; do
     /home/ark/MAB/bin/breseq-local/breseq_parser.py -b ${i} -o ${OUT}/Combined_Summary -gbk ${DIR}/${ref} -m ${mode}
-    /home/ark/MAB/bin/breseq-local//breseq_plotter.py ${i} ${OUT}/analysis
+    /home/ark/MAB/bin/breseq-local/breseq_plotter.py ${i} ${OUT}/analysis
 done
 # **************************************************************************************************
 /home/ark/MAB/bin/breseq-local/breseq_combiner.py -i ${OUT}/Combined_Summary -m ${mode}
