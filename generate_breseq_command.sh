@@ -157,10 +157,10 @@ done < "$input_file"
 
 # Add reference files to the command
 for ref in "${reference_files[@]}"; do
-    breseq_command+=" -r /home/ec2-user/process/$output_id/$ref"
+    breseq_command+=" -r /home/ark/MAB/breseq/$output_id/$ref"
 done
 
-breseq_command+=" -o /home/ec2-user/completed/$output_id/$output_name"
+breseq_command+=" -o /home/ark/MAB/breseq/$output_id/$output_name"
 
 breseq_command+=" -j 8 --brief-html-output"
 
