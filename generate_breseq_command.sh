@@ -160,7 +160,7 @@ for ref in "${reference_files[@]}"; do
     breseq_command+=" -r /home/ark/MAB/breseq/$output_id/$ref"
 done
 
-breseq_command+=" -o /home/ark/MAB/breseq/$output_id/$output_name"
+breseq_command+=" -o /home/ark/MAB/breseq/completed/$output_id/$output_name"
 
 breseq_command+=" -j 24 --brief-html-output"
 
