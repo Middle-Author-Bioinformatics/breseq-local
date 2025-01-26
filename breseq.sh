@@ -97,11 +97,16 @@ mv /home/ark/MAB/breseq/tmp/${ID}/Combined_Summary /home/ark/MAB/breseq/complete
 # Archive results
 tar -cf /home/ark/MAB/breseq/completed/${ID}.tar /home/ark/MAB/breseq/completed/${ID} && gzip /home/ark/MAB/breseq/completed/${ID}.tar
 
+mv /home/ark/MAB/breseq/completed/${ID} ./${ID}
+tar -cf ${ID}.tar ${ID} && gzip ${ID}.tar
+
 # Upload results to S3 and generate presigned URL
-results_tar="/home/ark/MAB/breseq/completed/${ID}.tar.gz"
+results_tar="${ID}.tar.gz"
 s3_key="${ID}.tar.gz"
 python3 /home/ark/MAB/bin/breseq-local/push.py --bucket binfo-dump --output_key ${s3_key} --source ${results_tar}
 url=$(python3 /home/ark/MAB/bin/breseq-local/gen_presign_url.py --bucket binfo-dump --key ${s3_key} --expiration 86400)
+
+mv ${ID}.tar.gz /home/ark/MAB/breseq/completed/${ID}.tar.gz
 
 # Send email
 python3 /home/ark/MAB/bin/breseq-local/send_email.py \
