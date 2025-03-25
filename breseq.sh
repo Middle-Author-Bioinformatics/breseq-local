@@ -110,7 +110,7 @@ mv ${ID}.tar.gz /home/ark/MAB/breseq/completed/${ID}.tar.gz
 
 # Send email
 python3 /home/ark/MAB/bin/breseq-local/send_email.py \
-    --sender ark@midauthorbio.com \
+    --sender dna@midauthorbio.com \
     --recipient ${email} \
     --subject "Your Breseq Results!" \
     --body "Hi ${name},
