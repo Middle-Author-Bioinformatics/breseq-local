@@ -24,8 +24,10 @@ def shorten_url(long_url):
 
 
 def generate_presigned_url(bucket_name, object_key, expiration=86400):
-    # s3_client = boto3.client('s3')
-    s3_client = boto3.client('s3', config=Config(signature_version='s3v4'), region_name='us-east-2') # Enforce AWS Signature Version 4
+    # Use boto3 Session with explicit region
+    session = boto3.Session(region_name='us-east-2')
+    s3_client = session.client('s3', config=Config(signature_version='s3v4'))
+
     try:
         url = s3_client.generate_presigned_url(
             'get_object',
