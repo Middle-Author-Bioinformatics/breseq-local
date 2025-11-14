@@ -30,14 +30,22 @@ def extract_form_data(folder_path):
                     accession = line.strip().split(" ")[1]
                 elif line.startswith("Polymorphic"):
                     poly = " ".join(line.strip().split(" ", 2)[1:])
-    if reference:
+                elif line.startswith("ForwardReads"):
+                    fwd = line.strip().split(" ")[1]
+                elif line.startswith("ReverseReads"):
+                    rev = line.strip().split(" ")[1]
+
+    if reference != "N/A":
         referenceFile = os.path.join(folder_path, reference)
-    else:
+
+    elif accession != "N/A":
         os.system(f"/home/ark/MAB/breseq-local/bit2local.sh -a {accession} -o {folder_path}")
         reference = accession + ".gb"
         referenceFile = os.path.join(folder_path, reference)
+    else:
+        referenceFile = "None"
 
-    return email, referenceFile, poly
+    return email, referenceFile, poly, fwd, rev
 
 def load_seen_folders(log_path):
     if os.path.exists(log_path):
@@ -94,13 +102,13 @@ def find_fastq_files(folder_path):
                 if f.endswith('.fastq') or f.endswith('.fastq.gz')]
     return fastq_files
 
-def run_breseq_command(folder_path, fastq_files, output_dir, poly, gbk_file):
+def run_breseq_command(folder_path, fwd, rev, output_dir, poly, gbk_file):
     # gbk_file = '/home/ark/MAB/evolvingstem/GCA_000009225.gbk'
 
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    fastq_files_str = ' '.join(fastq_files)
+    fastq_files_str = fwd + " " + rev
     if poly == "clonal":
         command = f"breseq -l 60 -t -j 12 -o {output_dir} -r {gbk_file} {fastq_files_str}"
     else:
@@ -256,7 +264,7 @@ if __name__ == "__main__":
         download_s3_folder(bucket_name, s3_folder, local_folder)
 
         # Extract form data and send notification email
-        email, referenceFile, poly = extract_form_data(local_folder)
+        email, referenceFile, poly, fwd, rev = extract_form_data(local_folder)
         if email:
             subject = f"Data received for your variant-calling analysis"
             body = (
@@ -277,8 +285,8 @@ if __name__ == "__main__":
             print(f"No valid form-data.txt found or missing email/name in: {local_folder}")
 
 
-        fastq_files = find_fastq_files(local_folder)
-        print(f"FASTQ files found: {fastq_files}")
+        # fastq_files = find_fastq_files(local_folder)
+        print(f"FASTQ files found: {fwd, rev}")
 
         # Define output directory
         output_dir = os.path.join(output_dir, s3_folder)
@@ -288,8 +296,8 @@ if __name__ == "__main__":
         # Skip breseq if output_dir already exists
         if not os.path.exists(output_dir):
             print("Output directory does not exist. Running Breseq.")
-            if fastq_files:
-                run_breseq_command(local_folder, fastq_files, output_dir, poly, referenceFile)
+            if fwd and rev:
+                run_breseq_command(local_folder, fwd, rev, output_dir, poly, referenceFile)
         else:
             print("Output directory already exists. Skipping Breseq.")
 
