@@ -13,7 +13,7 @@ s3_client = boto3.client('s3')
 # Global list to track downloaded folders
 downloaded_folders = []
 
-log_file_path = '/home/ark/MAB/evolvingstem/seen_folders.log'
+log_file_path = '/home/ark/MAB/breseq/processed_folders.log'
 
 
 def extract_form_data(folder_path):
@@ -105,7 +105,6 @@ def find_fastq_files(folder_path):
     return fastq_files
 
 def run_breseq_command(folder_path, fwd, rev, output_dir, poly, gbk_file):
-    # gbk_file = '/home/ark/MAB/evolvingstem/GCA_000009225.gbk'
 
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
@@ -242,16 +241,16 @@ def upload_file_to_s3(bucket_name, s3_folder, local_file):
 
 if __name__ == "__main__":
     bucket_name = 'breseqbucket'
-    local_base_dir = '/home/ark/MAB/evolvingstem/data'
+    local_base_dir = '/home/ark/MAB/breseq/data'
     folders = list_folders_in_bucket(bucket_name)
-    output_dir = '/home/ark/MAB/evolvingstem/results'
+    output_dir = '/home/ark/MAB/breseq/results'
 
     seen_folders = load_seen_folders(log_file_path)
 
     new_folders = [f for f in folders if f not in seen_folders]
 
-    for s3_folder in new_folders:
-        append_seen_folder(log_file_path, s3_folder)
+    # for s3_folder in new_folders:
+    #     append_seen_folder(log_file_path, s3_folder)
 
     # Debugging: Check if folders are retrieved
     print(f"Folders found in bucket: {folders}")
@@ -410,11 +409,11 @@ if __name__ == "__main__":
             body = (
                     f"Hi,\n\n"
                     "Your sequencing data has been processed. You can access your results at the links below:\n\n"
-                    "Web Viewer: https://evolvingstem.midauthorbio.com\n\n"
+                    # "Web Viewer: https://evolvingstem.midauthorbio.com\n\n"
                     "📥 Downloadable Files:\n" +
                     "\n".join(download_links) + "\n\n"
                                                 "If you have any questions, feel free to reach out.\n\n"
-                                                "Best regards,\nEvolvingSTEM Team"
+                                                "Best regards,\nMAB Team"
             )
             send_email_without_attachment(
                 sender_email="binfo@midauthorbio.com",
