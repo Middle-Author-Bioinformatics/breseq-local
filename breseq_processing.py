@@ -45,6 +45,8 @@ def extract_form_data(folder_path):
     else:
         referenceFile = "None"
 
+    print(referenceFile)
+
     return email, referenceFile, poly, fwd, rev
 
 def load_seen_folders(log_path):
