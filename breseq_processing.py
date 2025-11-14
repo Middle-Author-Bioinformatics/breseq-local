@@ -109,11 +109,14 @@ def run_breseq_command(folder_path, fwd, rev, output_dir, poly, gbk_file):
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
+    fwd = os.path.join(folder_path, fwd)
+    rev = os.path.join(folder_path, fwd)
+
     fastq_files_str = fwd + " " + rev
     if poly == "clonal":
         command = f"breseq -l 60 -t -j 12 -o {output_dir} -r {gbk_file} {fastq_files_str}"
     else:
-        command = f"breseq -l 60 -t -j 12 -o {output_dir} -r {gbk_file} {fastq_files_str} --polymorphism-prediction"
+        command = f"breseq --polymorphism-prediction -l 60 -t -j 12 -o {output_dir} -r {gbk_file} {fastq_files_str}"
 
     full_command = ['/home/ark/miniconda3/bin/conda', 'run', '-n', 'breseq_env', 'bash', '-c', command]
 
