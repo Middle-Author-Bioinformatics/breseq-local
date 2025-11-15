@@ -15,6 +15,55 @@ downloaded_folders = []
 
 log_file_path = '/home/ark/MAB/breseq/processed_folders.log'
 
+def prepare_and_upload_reference(contigsFile: str, original_s3_path: str):
+    """
+    Takes the provided contigsFile, renames it to reference.fa,
+    creates a reference.fa.fai index, and uploads both files
+    back to the S3 bucket where the contigs came from.
+
+    Parameters
+    ----------
+    contigsFile : str
+        Local path to the contigs FASTA file that already exists on disk.
+    original_s3_path : str
+        Full S3 URI where the contigs were originally located, e.g.:
+        's3://mybucket/userX/job123/contigs.fa'
+    """
+
+    s3 = boto3.client("s3")
+
+    # -------------------------------------------------------
+    # Derive bucket + prefix from original S3 path
+    # -------------------------------------------------------
+    if not original_s3_path.startswith("s3://"):
+        raise ValueError("original_s3_path must start with s3://")
+
+    no_prefix = original_s3_path.replace("s3://", "")
+    bucket = no_prefix.split("/")[0]
+    key_parts = no_prefix.split("/")[1:-1]   # everything except last element
+    prefix = "/".join(key_parts)
+    if prefix != "":
+        prefix += "/"   # add trailing slash
+
+    # -------------------------------------------------------
+    # Create local reference files
+    # -------------------------------------------------------
+    reference_file = "reference.fa"
+    index_file = "reference.fa.fai"
+
+    # Copy/rename the contigs file
+    subprocess.run(["cp", contigsFile, reference_file], check=True)
+
+    # Create the FASTA index
+    subprocess.run(["samtools", "faidx", reference_file], check=True)
+
+    # -------------------------------------------------------
+    # Upload both files to the same bucket/prefix
+    # -------------------------------------------------------
+    s3.upload_file(reference_file, bucket, prefix + "reference.fa")
+    s3.upload_file(index_file, bucket, prefix + "reference.fa.fai")
+
+    print(f"Uploaded reference.fa and reference.fa.fai to s3://{bucket}/{prefix}")
 
 def extract_form_data(folder_path):
     form_file = os.path.join(folder_path, "form-data.txt")
@@ -26,6 +75,8 @@ def extract_form_data(folder_path):
                     email = line.strip().split(" ", 1)[1]
                 elif line.startswith("ReferenceFile"):
                     reference = line.strip().split(" ")[1]
+                elif line.startswith("ContigsFile"):
+                    contigs = line.strip().split(" ")[1]
                 elif line.startswith("Accession"):
                     accession = line.strip().split(" ")[1]
                 elif line.startswith("Polymorphic"):
@@ -38,6 +89,9 @@ def extract_form_data(folder_path):
     if reference != "N/A":
         referenceFile = os.path.join(folder_path, reference)
 
+    if contigs != "N/A":
+        contigsFile = os.path.join(folder_path, contigs)
+
     elif accession != "N/A":
         os.system(f"/home/ark/MAB/breseq-local/bit2local.sh -a {accession} -o {folder_path}")
         reference = accession + ".gb"
@@ -45,9 +99,7 @@ def extract_form_data(folder_path):
     else:
         referenceFile = "None"
 
-    print(referenceFile)
-
-    return email, referenceFile, poly, fwd, rev
+    return email, referenceFile, contigsFile, poly, fwd, rev
 
 def load_seen_folders(log_path):
     if os.path.exists(log_path):
@@ -236,7 +288,6 @@ def upload_directory_to_s3(bucket_name, s3_folder, local_directory):
             print(f"Uploading {local_file_path} to s3://{bucket_name}/{s3_key}")
             s3_client.upload_file(local_file_path, bucket_name, s3_key)
 
-
 def upload_file_to_s3(bucket_name, s3_folder, local_file):
     s3_key = os.path.join(s3_folder, os.path.basename(local_file))
     s3_client.upload_file(local_file, bucket_name, s3_key)
@@ -268,7 +319,7 @@ if __name__ == "__main__":
         download_s3_folder(bucket_name, s3_folder, local_folder)
 
         # Extract form data and send notification email
-        email, referenceFile, poly, fwd, rev = extract_form_data(local_folder)
+        email, referenceFile, contigsFile, poly, fwd, rev = extract_form_data(local_folder)
         if email:
             subject = f"Data received for your variant-calling analysis"
             body = (
@@ -390,6 +441,14 @@ if __name__ == "__main__":
                 upload_file_to_s3(bucket_name, s3_folder, bai_file)
             else:
                 print(f"BAI file not found, skipping upload: {bai_file}")
+
+            s3_path_contigs = f"s3://{bucket_name}/{s3_folder}contigs.fa"
+            if os.path.exists(contigsFile):
+                print(f"Preparing and uploading reference files based on: {contigsFile}")
+                prepare_and_upload_reference(contigsFile, s3_path_contigs)
+            else:
+                print(f"Contigs file not found, skipping upload: {contigsFile}")
+
         else:
             print(f"Output directory not found, skipping further processing for: {s3_folder}")
 
