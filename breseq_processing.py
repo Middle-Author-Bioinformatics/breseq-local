@@ -132,6 +132,21 @@ def list_folders_in_bucket(bucket_name):
                         folders.add(f"{user}/{subfolder}/")
     return sorted(folders)
 
+def list_user(bucket_name):
+    paginator = s3_client.get_paginator('list_objects_v2')
+    response_iterator = paginator.paginate(Bucket=bucket_name)
+    user = 'unknown'
+
+    for page in response_iterator:
+        for obj in page.get("Contents", []):
+            key = obj["Key"]
+            if key.endswith("form-data.txt"):
+                parts = key.split('/')
+                print(f"Processing key: {key}")
+                if len(parts) >= 3:
+                    user = parts[0]
+    return user
+
 def download_s3_folder(bucket_name, s3_folder, local_dir):
     if not os.path.exists(local_dir):
         os.makedirs(local_dir)
@@ -299,6 +314,7 @@ if __name__ == "__main__":
     bucket_name = 'breseqbucket'
     local_base_dir = '/home/ark/MAB/breseq/data'
     folders = list_folders_in_bucket(bucket_name)
+    user = list_user(bucket_name)
     output_dir = '/home/ark/MAB/breseq/results'
 
     seen_folders = load_seen_folders(log_file_path)
@@ -306,7 +322,7 @@ if __name__ == "__main__":
     new_folders = [f for f in folders if f not in seen_folders]
 
     for s3_folder in new_folders:
-        append_seen_folder(log_file_path, s3_folder)
+        append_seen_folder(log_file_path, user, s3_folder)
 
     # Debugging: Check if folders are retrieved
     print(f"Folders found in bucket: {folders}")
