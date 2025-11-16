@@ -91,7 +91,7 @@ def extract_form_data(folder_path):
         contigsFile = os.path.join(folder_path, contigs)
 
     elif accession != "N/A":
-        os.system(f"/home/ark/MAB/breseq-local/bit2local.sh -a {accession} -o {folder_path}")
+        os.system(f"/home/ark/MAB/bin/breseq-local/bit2local.sh -a {accession} -o {folder_path}")
         reference = accession + ".gb"
         referenceFile = os.path.join(folder_path, reference)
 
