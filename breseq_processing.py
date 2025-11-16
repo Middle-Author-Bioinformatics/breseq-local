@@ -125,7 +125,7 @@ def list_folders_in_bucket(bucket_name):
                 if len(parts) >= 3:
                     user = parts[0]
                     subfolder = parts[1]
-                    if user in ["vaughn.cooper", 'rkdgarber']:
+                    if user in ['rkdgarber']:
                         print(user)
                         folders.add(f"{user}/{subfolder}/")
     return sorted(folders)
@@ -303,8 +303,8 @@ if __name__ == "__main__":
 
     new_folders = [f for f in folders if f not in seen_folders]
 
-    # for s3_folder in new_folders:
-    #     append_seen_folder(log_file_path, s3_folder)
+    for s3_folder in new_folders:
+        append_seen_folder(log_file_path, s3_folder)
 
     # Debugging: Check if folders are retrieved
     print(f"Folders found in bucket: {folders}")
