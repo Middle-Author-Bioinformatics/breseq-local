@@ -127,7 +127,7 @@ def list_folders_in_bucket(bucket_name):
                     subfolder = parts[1]
                     if user in ['rkdgarber']:
                         print(user)
-                        folders.add(f"{user}/{subfolder}/")
+                        folders.add(f"{subfolder}/")
     return sorted(folders)
 
 def download_s3_folder(bucket_name, s3_folder, local_dir):
