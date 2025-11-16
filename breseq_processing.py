@@ -88,16 +88,18 @@ def extract_form_data(folder_path):
 
     if reference != "N/A":
         referenceFile = os.path.join(folder_path, reference)
-
-    if contigs != "N/A":
         contigsFile = os.path.join(folder_path, contigs)
 
     elif accession != "N/A":
         os.system(f"/home/ark/MAB/breseq-local/bit2local.sh -a {accession} -o {folder_path}")
         reference = accession + ".gb"
         referenceFile = os.path.join(folder_path, reference)
+
+        contigs = accession + ".fa"
+        contigsFile = os.path.join(folder_path, contigs)
     else:
         referenceFile = "None"
+        contigsFile = "None"
 
     return email, referenceFile, contigsFile, poly, fwd, rev
 
@@ -107,9 +109,9 @@ def load_seen_folders(log_path):
             return set(line.strip() for line in f)
     return set()
 
-def append_seen_folder(log_path, folder):
+def append_seen_folder(log_path, user, folder):
     with open(log_path, 'a') as f:
-        f.write(folder + '\n')
+        f.write(user + "/" + folder + '\n')
 
 def list_folders_in_bucket(bucket_name):
     paginator = s3_client.get_paginator('list_objects_v2')
@@ -127,7 +129,7 @@ def list_folders_in_bucket(bucket_name):
                     subfolder = parts[1]
                     if user in ['rkdgarber']:
                         print(user)
-                        folders.add(f"{subfolder}/")
+                        folders.add(f"{user}/{subfolder}/")
     return sorted(folders)
 
 def download_s3_folder(bucket_name, s3_folder, local_dir):
@@ -162,7 +164,7 @@ def run_breseq_command(folder_path, fwd, rev, output_dir, poly, gbk_file):
         os.makedirs(output_dir)
 
     fwd = os.path.join(folder_path, fwd)
-    rev = os.path.join(folder_path, fwd)
+    rev = os.path.join(folder_path, rev)
 
     fastq_files_str = fwd + " " + rev
     if poly == "clonal":
