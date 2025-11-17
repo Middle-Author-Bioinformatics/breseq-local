@@ -311,7 +311,7 @@ def upload_file_to_s3(bucket_name, s3_folder, local_file):
     print(f"Uploaded {local_file} to s3://{bucket_name}/{s3_key}")
 
 if __name__ == "__main__":
-    bucket_name = 'breseqbucket'
+    bucket_name = 'breseqappbucket'
     local_base_dir = '/home/ark/MAB/breseq/data'
     folders = list_folders_in_bucket(bucket_name)
     user = list_user(bucket_name)
