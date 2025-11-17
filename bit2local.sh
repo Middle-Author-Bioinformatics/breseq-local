@@ -51,6 +51,7 @@ gzip -d ${ACC}.gb.gz
 gzip -d ${ACC}.fa.gz
 
 mv ${ACC}.gb ${OUT}/
+mv ${ACC}.fa ${OUT}/
 
 rm accessions.txt
 
