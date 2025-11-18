@@ -15,55 +15,55 @@ downloaded_folders = []
 
 log_file_path = '/home/ark/MAB/breseq/processed_folders.log'
 
-def prepare_and_upload_reference(contigsFile: str, original_s3_path: str):
-    """
-    Takes the provided contigsFile, renames it to reference.fa,
-    creates a reference.fa.fai index, and uploads both files
-    back to the S3 bucket where the contigs came from.
-
-    Parameters
-    ----------
-    contigsFile : str
-        Local path to the contigs FASTA file that already exists on disk.
-    original_s3_path : str
-        Full S3 URI where the contigs were originally located, e.g.:
-        's3://mybucket/userX/job123/contigs.fa'
-    """
-
-    s3 = boto3.client("s3")
-
-    # -------------------------------------------------------
-    # Derive bucket + prefix from original S3 path
-    # -------------------------------------------------------
-    if not original_s3_path.startswith("s3://"):
-        raise ValueError("original_s3_path must start with s3://")
-
-    no_prefix = original_s3_path.replace("s3://", "")
-    bucket = no_prefix.split("/")[0]
-    key_parts = no_prefix.split("/")[1:-1]   # everything except last element
-    prefix = "/".join(key_parts)
-    if prefix != "":
-        prefix += "/"   # add trailing slash
-
-    # -------------------------------------------------------
-    # Create local reference files
-    # -------------------------------------------------------
-    reference_file = "reference.fa"
-    index_file = "reference.fa.fai"
-
-    # Copy/rename the contigs file
-    subprocess.run(["cp", contigsFile, reference_file], check=True)
-
-    # Create the FASTA index
-    subprocess.run(["samtools", "faidx", reference_file], check=True)
-
-    # -------------------------------------------------------
-    # Upload both files to the same bucket/prefix
-    # -------------------------------------------------------
-    s3.upload_file(reference_file, bucket, prefix + "reference.fa")
-    s3.upload_file(index_file, bucket, prefix + "reference.fa.fai")
-
-    print(f"Uploaded reference.fa and reference.fa.fai to s3://{bucket}/{prefix}")
+# def prepare_and_upload_reference(contigsFile: str, original_s3_path: str):
+#     """
+#     Takes the provided contigsFile, renames it to reference.fa,
+#     creates a reference.fa.fai index, and uploads both files
+#     back to the S3 bucket where the contigs came from.
+#
+#     Parameters
+#     ----------
+#     contigsFile : str
+#         Local path to the contigs FASTA file that already exists on disk.
+#     original_s3_path : str
+#         Full S3 URI where the contigs were originally located, e.g.:
+#         's3://mybucket/userX/job123/contigs.fa'
+#     """
+#
+#     s3 = boto3.client("s3")
+#
+#     # -------------------------------------------------------
+#     # Derive bucket + prefix from original S3 path
+#     # -------------------------------------------------------
+#     if not original_s3_path.startswith("s3://"):
+#         raise ValueError("original_s3_path must start with s3://")
+#
+#     no_prefix = original_s3_path.replace("s3://", "")
+#     bucket = no_prefix.split("/")[0]
+#     key_parts = no_prefix.split("/")[1:-1]   # everything except last element
+#     prefix = "/".join(key_parts)
+#     if prefix != "":
+#         prefix += "/"   # add trailing slash
+#
+#     # -------------------------------------------------------
+#     # Create local reference files
+#     # -------------------------------------------------------
+#     reference_file = "reference.fa"
+#     index_file = "reference.fa.fai"
+#
+#     # Copy/rename the contigs file
+#     subprocess.run(["cp", contigsFile, reference_file], check=True)
+#
+#     # Create the FASTA index
+#     subprocess.run(["samtools", "faidx", reference_file], check=True)
+#
+#     # -------------------------------------------------------
+#     # Upload both files to the same bucket/prefix
+#     # -------------------------------------------------------
+#     s3.upload_file(reference_file, bucket, prefix + "reference.fa")
+#     s3.upload_file(index_file, bucket, prefix + "reference.fa.fai")
+#
+#     print(f"Uploaded reference.fa and reference.fa.fai to s3://{bucket}/{prefix}")
 
 def extract_form_data(folder_path):
     form_file = os.path.join(folder_path, "form-data.txt")
@@ -75,8 +75,8 @@ def extract_form_data(folder_path):
                     email = line.strip().split(" ", 1)[1]
                 elif line.startswith("ReferenceFile"):
                     reference = line.strip().split(" ")[1]
-                elif line.startswith("ContigsFile"):
-                    contigs = line.strip().split(" ")[1]
+                # elif line.startswith("ContigsFile"):
+                #     contigs = line.strip().split(" ")[1]
                 elif line.startswith("Accession"):
                     accession = line.strip().split(" ")[1]
                 elif line.startswith("Polymorphic"):
@@ -88,7 +88,7 @@ def extract_form_data(folder_path):
 
     if reference != "N/A":
         referenceFile = os.path.join(folder_path, reference)
-        contigsFile = os.path.join(folder_path, contigs)
+        # contigsFile = os.path.join(folder_path, contigs)
 
     elif accession != "N/A":
         os.system(f"/home/ark/MAB/bin/breseq-local/bit2local.sh -a {accession} -o {folder_path}")
@@ -101,7 +101,7 @@ def extract_form_data(folder_path):
         referenceFile = "None"
         contigsFile = "None"
 
-    return email, referenceFile, contigsFile, poly, fwd, rev
+    return email, referenceFile, poly, fwd, rev
 
 def load_seen_folders(log_path):
     if os.path.exists(log_path):
@@ -237,33 +237,38 @@ def extract_mutations(output_dir):
         print("Error: Could not find the mutation table.")
         return
 
-    # # Define mutations to ignore
-    # ignored_mutations = {
-    #     ("45881", "+G"),
-    #     ("985333", "+C"),
-    #     ("3447984", "(C)5→3"),
-    #     ("3447984", "(C)₅→3"),  # Unicode subscript 5 version if encountered
-    #     ("3,447,984", "(C)5→3"),
-    #     ("3,447,984", "(C)₅→3"),  # With commas
-    # }
-
     data = []
     for row in mutation_table.find_all("tr", class_="normal_table_row"):
         columns = row.find_all("td")
-        if len(columns) >= 6:
-            pos = columns[1].get_text(strip=True).replace(",", "")
-            mut = columns[2].get_text(strip=True).replace("₅", "5")  # Normalize subscript
-            # if (pos, mut) in ignored_mutations:
-            #     continue
+        texts = [c.get_text(strip=True) for c in columns]
 
-            entry = {
-                "position": pos,
-                "mutation": mut,
-                "annotation": columns[3].get_text(strip=True),
-                "gene": columns[4].get_text(strip=True),
-                "description": columns[5].get_text(strip=True)
-            }
-            data.append(entry)
+        # Case 1: breseq includes contig + position (most polymorphic pipelines)
+        if len(texts) >= 6 and texts[0].startswith("contig_"):
+            contig = texts[0]
+            pos = texts[1]
+            mut = texts[2]
+            annotation = texts[3]
+            gene = texts[4]
+            description = texts[5]
+
+        # Case 2: older breseq (no contig column)
+        elif len(texts) >= 5:
+            contig = None
+            pos = texts[0]
+            mut = texts[1]
+            annotation = texts[2]
+            gene = texts[3]
+            description = texts[4]
+
+        # Build entry
+        entry = {
+            "contig": contig,
+            "position": pos.replace(",", ""),
+            "mutation": mut,
+            "annotation": annotation,
+            "gene": gene,
+            "description": description,
+        }
 
     json_file_path = os.path.join(output_dir, "mutation_predictions.json")
     with open(json_file_path, "w", encoding="utf-8") as json_file:
@@ -337,7 +342,7 @@ if __name__ == "__main__":
         download_s3_folder(bucket_name, s3_folder, local_folder)
 
         # Extract form data and send notification email
-        email, referenceFile, contigsFile, poly, fwd, rev = extract_form_data(local_folder)
+        email, referenceFile, poly, fwd, rev = extract_form_data(local_folder)
         if email:
             subject = f"Data received for your variant-calling analysis"
             body = (
@@ -460,10 +465,14 @@ if __name__ == "__main__":
             else:
                 print(f"BAI file not found, skipping upload: {bai_file}")
 
-            s3_path_contigs = f"s3://{bucket_name}/{s3_folder}contigs.fa"
+            contigsFile = os.path.join(output_dir, "data", "reference.fa")
+            # s3_path_contigs = f"s3://{bucket_name}/{s3_folder}"
             if os.path.exists(contigsFile):
                 print(f"Preparing and uploading reference files based on: {contigsFile}")
-                prepare_and_upload_reference(contigsFile, s3_path_contigs)
+                subprocess.run(["samtools", "faidx", contigsFile], check=True)
+                contigsIndex = contigsFile + ".fai"
+                upload_file_to_s3(bucket_name, s3_folder, contigsFile)
+                upload_file_to_s3(bucket_name, s3_folder, contigsIndex)
             else:
                 print(f"Contigs file not found, skipping upload: {contigsFile}")
 
