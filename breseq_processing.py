@@ -246,6 +246,7 @@ def extract_mutations(output_dir):
         cols = row.find_all("td")
         if len(cols) < 7:
             continue
+        print(cols)
 
         evidence = cols[0].get_text(strip=True)
         contig = cols[1].get_text(strip=True)
