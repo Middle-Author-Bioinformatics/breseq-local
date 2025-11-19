@@ -241,12 +241,11 @@ def extract_mutations(output_dir):
     print(f"Found {len(rows)} mutation rows")
 
     data = []
-
+    print(rows)
     for row in rows:
         cols = row.find_all("td")
         if len(cols) < 7:
             continue
-        print(cols)
 
         evidence = cols[0].get_text(strip=True)
         contig = cols[1].get_text(strip=True)
