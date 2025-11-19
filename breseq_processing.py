@@ -218,15 +218,12 @@ def extract_mutations(output_dir):
     html_file_path = os.path.join(output_dir, "output", "index.html")
 
     if not os.path.exists(html_file_path):
-        print(f"Error: index.html not found in {html_file_path}")
+        print(f"Error: index.html not found at {html_file_path}")
         return
 
-    with open(html_file_path, "r", encoding="utf-8") as file:
-        html_content = file.read()
+    with open(html_file_path, "r", encoding="utf-8") as f:
+        soup = BeautifulSoup(f.read(), "html.parser")
 
-    soup = BeautifulSoup(html_content, "html.parser")
-
-    # Locate the breseq mutation table
     mutation_table = None
     for table in soup.find_all("table"):
         if table.find("th", string="Predicted mutations"):
@@ -234,28 +231,48 @@ def extract_mutations(output_dir):
             break
 
     if mutation_table is None:
-        print("Error: Could not find the mutation table.")
+        print("Error: Could not find mutation table.")
         return
 
     rows = mutation_table.find_all("tr", class_="normal_table_row")
     print(f"Found {len(rows)} mutation rows")
 
     data = []
-    print(rows)
+
     for row in rows:
         cols = row.find_all("td")
-        if len(cols) < 7:
+        n = len(cols)
+
+        # -----------------------------
+        # Case A: 6-column breseq table
+        # -----------------------------
+        if n == 6:
+            evidence = cols[0].get_text(strip=True)
+            pos = cols[1].get_text(strip=True).replace(",", "")
+            mut = cols[2].get_text(strip=True)
+            annotation = cols[3].get_text(strip=True)
+            gene = cols[4].get_text(strip=True)
+            description = cols[5].get_text(strip=True)
+            contig = None  # no contig column in your output
+
+        # -----------------------------
+        # Case B: 7-column breseq table
+        # -----------------------------
+        elif n == 7:
+            evidence = cols[0].get_text(strip=True)
+            contig = cols[1].get_text(strip=True)
+            pos = cols[2].get_text(strip=True).replace(",", "")
+            mut = cols[3].get_text(strip=True)
+            annotation = cols[4].get_text(strip=True)
+            gene = cols[5].get_text(strip=True)
+            description = cols[6].get_text(strip=True)
+
+        else:
+            # unexpected format → skip
+            print("Skipping row with unexpected column count:", n)
             continue
 
-        evidence = cols[0].get_text(strip=True)
-        contig = cols[1].get_text(strip=True)
-        pos = cols[2].get_text(strip=True).replace(",", "")
-        mut = cols[3].get_text(strip=True)
-        annotation = cols[4].get_text(strip=True)
-        gene = cols[5].get_text(strip=True)
-        description = cols[6].get_text(strip=True)
-
-        entry = {
+        data.append({
             "evidence": evidence,
             "contig": contig,
             "position": pos,
@@ -263,16 +280,13 @@ def extract_mutations(output_dir):
             "annotation": annotation,
             "gene": gene,
             "description": description,
-        }
+        })
 
-        data.append(entry)
+    out_json = os.path.join(output_dir, "mutation_predictions.json")
+    with open(out_json, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=4, ensure_ascii=False)
 
-    output_json = os.path.join(output_dir, "mutation_predictions.json")
-    with open(output_json, "w", encoding="utf-8") as out:
-        json.dump(data, out, indent=4, ensure_ascii=False)
-
-    print(f"Wrote {len(data)} mutations to {output_json}")
-
+    print(f"Wrote {len(data)} mutations to {out_json}")
 
 
 def calculate_coverage_averages(coverage_file, output_dir):
