@@ -215,44 +215,38 @@ def run_samtools_command(output_dir):
 
 
 def extract_mutations(output_dir):
-    # Adjust this if your index.html is not inside an "output" subfolder
     html_file_path = os.path.join(output_dir, "output", "index.html")
 
     if not os.path.exists(html_file_path):
-        print(f"Error: index.html not found at {html_file_path}")
+        print(f"Error: index.html not found in {html_file_path}")
         return
 
-    # breseq often writes ISO-8859-1; this is safer than utf-8 for those files
-    with open(html_file_path, "r", encoding="iso-8859-1") as file:
+    with open(html_file_path, "r", encoding="utf-8") as file:
         html_content = file.read()
 
     soup = BeautifulSoup(html_content, "html.parser")
 
-    # Find the table that has a <th> with text "Predicted mutations"
+    # Locate the breseq mutation table
     mutation_table = None
     for table in soup.find_all("table"):
-        header = table.find("th", string="Predicted mutations")
-        if header:
+        if table.find("th", string="Predicted mutations"):
             mutation_table = table
             break
 
-    if not mutation_table:
-        print("Error: Could not find the 'Predicted mutations' table.")
+    if mutation_table is None:
+        print("Error: Could not find the mutation table.")
         return
 
-    data = []
     rows = mutation_table.find_all("tr", class_="normal_table_row")
     print(f"Found {len(rows)} mutation rows")
+
+    data = []
 
     for row in rows:
         cols = row.find_all("td")
         if len(cols) < 7:
-            # Skip malformed rows just in case
             continue
 
-        # Map columns based on breseq HTML:
-        # 0: evidence, 1: seq id (contig), 2: position, 3: mutation,
-        # 4: annotation, 5: gene, 6: description
         evidence = cols[0].get_text(strip=True)
         contig = cols[1].get_text(strip=True)
         pos = cols[2].get_text(strip=True).replace(",", "")
@@ -270,13 +264,15 @@ def extract_mutations(output_dir):
             "gene": gene,
             "description": description,
         }
+
         data.append(entry)
 
-    json_file_path = os.path.join(output_dir, "mutation_predictions.json")
-    with open(json_file_path, "w", encoding="utf-8") as json_file:
-        json.dump(data, json_file, indent=4, ensure_ascii=False)
+    output_json = os.path.join(output_dir, "mutation_predictions.json")
+    with open(output_json, "w", encoding="utf-8") as out:
+        json.dump(data, out, indent=4, ensure_ascii=False)
 
-    print(f"Wrote {len(data)} mutations to {json_file_path}")
+    print(f"Wrote {len(data)} mutations to {output_json}")
+
 
 
 def calculate_coverage_averages(coverage_file, output_dir):
