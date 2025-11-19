@@ -215,17 +215,20 @@ def run_samtools_command(output_dir):
 
 
 def extract_mutations(output_dir):
+    # Adjust this if your index.html is not inside an "output" subfolder
     html_file_path = os.path.join(output_dir, "output", "index.html")
 
     if not os.path.exists(html_file_path):
-        print(f"Error: index.html not found in {output_dir}")
+        print(f"Error: index.html not found at {html_file_path}")
         return
 
-    with open(html_file_path, "r", encoding="utf-8") as file:
+    # breseq often writes ISO-8859-1; this is safer than utf-8 for those files
+    with open(html_file_path, "r", encoding="iso-8859-1") as file:
         html_content = file.read()
 
-    soup = BeautifulSoup(html_content, 'html.parser')
+    soup = BeautifulSoup(html_content, "html.parser")
 
+    # Find the table that has a <th> with text "Predicted mutations"
     mutation_table = None
     for table in soup.find_all("table"):
         header = table.find("th", string="Predicted mutations")
@@ -234,45 +237,46 @@ def extract_mutations(output_dir):
             break
 
     if not mutation_table:
-        print("Error: Could not find the mutation table.")
+        print("Error: Could not find the 'Predicted mutations' table.")
         return
 
     data = []
-    for row in mutation_table.find_all("tr", class_="normal_table_row"):
-        columns = row.find_all("td")
-        texts = [c.get_text(strip=True) for c in columns]
+    rows = mutation_table.find_all("tr", class_="normal_table_row")
+    print(f"Found {len(rows)} mutation rows")
 
-        # Case 1: breseq includes contig + position (most polymorphic pipelines)
-        if len(texts) >= 6 and texts[0].startswith("contig_"):
-            contig = texts[0]
-            pos = texts[1]
-            mut = texts[2]
-            annotation = texts[3]
-            gene = texts[4]
-            description = texts[5]
+    for row in rows:
+        cols = row.find_all("td")
+        if len(cols) < 7:
+            # Skip malformed rows just in case
+            continue
 
-        # Case 2: older breseq (no contig column)
-        elif len(texts) >= 5:
-            contig = None
-            pos = texts[0]
-            mut = texts[1]
-            annotation = texts[2]
-            gene = texts[3]
-            description = texts[4]
+        # Map columns based on breseq HTML:
+        # 0: evidence, 1: seq id (contig), 2: position, 3: mutation,
+        # 4: annotation, 5: gene, 6: description
+        evidence = cols[0].get_text(strip=True)
+        contig = cols[1].get_text(strip=True)
+        pos = cols[2].get_text(strip=True).replace(",", "")
+        mut = cols[3].get_text(strip=True)
+        annotation = cols[4].get_text(strip=True)
+        gene = cols[5].get_text(strip=True)
+        description = cols[6].get_text(strip=True)
 
-        # Build entry
         entry = {
+            "evidence": evidence,
             "contig": contig,
-            "position": pos.replace(",", ""),
+            "position": pos,
             "mutation": mut,
             "annotation": annotation,
             "gene": gene,
             "description": description,
         }
+        data.append(entry)
 
     json_file_path = os.path.join(output_dir, "mutation_predictions.json")
     with open(json_file_path, "w", encoding="utf-8") as json_file:
         json.dump(data, json_file, indent=4, ensure_ascii=False)
+
+    print(f"Wrote {len(data)} mutations to {json_file_path}")
 
 
 def calculate_coverage_averages(coverage_file, output_dir):
