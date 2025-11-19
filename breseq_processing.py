@@ -109,9 +109,9 @@ def load_seen_folders(log_path):
             return set(line.strip() for line in f)
     return set()
 
-def append_seen_folder(log_path, user, folder):
+def append_seen_folder(log_path, folder):
     with open(log_path, 'a') as f:
-        f.write(user + "/" + folder + '\n')
+        f.write(folder + '\n')
 
 def list_folders_in_bucket(bucket_name):
     paginator = s3_client.get_paginator('list_objects_v2')
@@ -341,7 +341,7 @@ if __name__ == "__main__":
     new_folders = [f for f in folders if f not in seen_folders]
 
     for s3_folder in new_folders:
-        append_seen_folder(log_file_path, user, s3_folder)
+        append_seen_folder(log_file_path, s3_folder)
 
     # Debugging: Check if folders are retrieved
     print(f"Folders found in bucket: {folders}")
