@@ -465,7 +465,7 @@ if __name__ == "__main__":
             else:
                 print(f"BAI file not found, skipping upload: {bai_file}")
 
-            contigsFile = os.path.join(output_dir, "data", "reference.fa")
+            contigsFile = os.path.join(output_dir, "data", "reference.fasta")
             # s3_path_contigs = f"s3://{bucket_name}/{s3_folder}"
             if os.path.exists(contigsFile):
                 print(f"Preparing and uploading reference files based on: {contigsFile}")
