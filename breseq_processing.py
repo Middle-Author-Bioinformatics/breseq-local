@@ -215,6 +215,14 @@ def run_samtools_command(output_dir):
 
 
 def extract_mutations(output_dir):
+    """
+    Parse breseq output/index.html and write mutation_predictions.json
+
+    We now:
+      * treat column 1 (second <td>) as seq_id
+      * write "seq_id" into the JSON
+      * keep backward-compatibility with 6-column tables (no seq_id)
+    """
     html_file_path = os.path.join(output_dir, "output", "index.html")
 
     if not os.path.exists(html_file_path):
@@ -242,39 +250,33 @@ def extract_mutations(output_dir):
     for row in rows:
         cols = row.find_all("td")
         n = len(cols)
+        if n < 6:
+            print("Skipping row with too few columns:", n)
+            continue
 
-        # -----------------------------
-        # Case A: 6-column breseq table
-        # -----------------------------
+        # Column layout in your breseq HTML:
+        # n == 6 : evidence | position | mutation | annotation | gene | description
+        # n >= 7: evidence | seq_id  | position | mutation   | annotation | gene | description
+        evidence = cols[0].get_text(strip=True)
+
         if n == 6:
-            evidence = cols[0].get_text(strip=True)
+            seq_id = None
             pos = cols[1].get_text(strip=True).replace(",", "")
             mut = cols[2].get_text(strip=True)
             annotation = cols[3].get_text(strip=True)
             gene = cols[4].get_text(strip=True)
             description = cols[5].get_text(strip=True)
-            contig = None  # no contig column in your output
-
-        # -----------------------------
-        # Case B: 7-column breseq table
-        # -----------------------------
-        elif n == 7:
-            evidence = cols[0].get_text(strip=True)
-            contig = cols[1].get_text(strip=True)
+        else:
+            seq_id = cols[1].get_text(strip=True)
             pos = cols[2].get_text(strip=True).replace(",", "")
             mut = cols[3].get_text(strip=True)
             annotation = cols[4].get_text(strip=True)
             gene = cols[5].get_text(strip=True)
             description = cols[6].get_text(strip=True)
 
-        else:
-            # unexpected format → skip
-            print("Skipping row with unexpected column count:", n)
-            continue
-
         data.append({
             "evidence": evidence,
-            "contig": contig,
+            "seq_id": seq_id,
             "position": pos,
             "mutation": mut,
             "annotation": annotation,
