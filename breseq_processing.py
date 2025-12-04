@@ -6,6 +6,7 @@ from bs4 import BeautifulSoup
 import pandas as pd
 from send_email import send_email_without_attachment
 from gen_presign_url import generate_presigned_url, shorten_url
+import mimetypes
 
 # Initialize S3 client
 s3_client = boto3.client('s3')
@@ -312,24 +313,50 @@ def calculate_coverage_averages(coverage_file, output_dir):
     print(f"Coverage averages saved to {averages_file}")
 
 
-def upload_directory_to_s3(bucket_name, s3_folder, local_directory):
-    s3_client = boto3.client('s3')
+# def upload_directory_to_s3(bucket_name, s3_folder, local_directory):
+#     s3_client = boto3.client('s3')
+#
+#     for root, dirs, files in os.walk(local_directory):
+#         for filename in files:
+#             local_file_path = os.path.join(root, filename)
+#
+#             # Build the S3 key path relative to the directory being uploaded
+#             relative_path = os.path.relpath(local_file_path, local_directory)
+#             s3_key = os.path.join(s3_folder, "output", relative_path).replace("\\", "/")
+#
+#             print(f"Uploading {local_file_path} to s3://{bucket_name}/{s3_key}")
+#             s3_client.upload_file(local_file_path, bucket_name, s3_key)
+#
+# def upload_file_to_s3(bucket_name, s3_folder, local_file):
+#     s3_key = os.path.join(s3_folder, os.path.basename(local_file))
+#     s3_client.upload_file(local_file, bucket_name, s3_key)
+#     print(f"Uploaded {local_file} to s3://{bucket_name}/{s3_key}")
 
-    for root, dirs, files in os.walk(local_directory):
+def upload_directory_with_mime(local_dir, bucket, prefix):
+    """
+    Uploads the breseq output directory with correct MIME types so HTML renders in browser.
+    """
+    for root, dirs, files in os.walk(local_dir):
         for filename in files:
-            local_file_path = os.path.join(root, filename)
+            file_path = os.path.join(root, filename)
+            key_path = os.path.join(prefix, os.path.relpath(file_path, local_dir))
 
-            # Build the S3 key path relative to the directory being uploaded
-            relative_path = os.path.relpath(local_file_path, local_directory)
-            s3_key = os.path.join(s3_folder, "output", relative_path).replace("\\", "/")
+            # Guess MIME type
+            content_type, _ = mimetypes.guess_type(file_path)
+            if content_type is None:
+                content_type = "binary/octet-stream"
 
-            print(f"Uploading {local_file_path} to s3://{bucket_name}/{s3_key}")
-            s3_client.upload_file(local_file_path, bucket_name, s3_key)
+            print(f"Uploading {file_path} → s3://{bucket}/{key_path} ({content_type})")
 
-def upload_file_to_s3(bucket_name, s3_folder, local_file):
-    s3_key = os.path.join(s3_folder, os.path.basename(local_file))
-    s3_client.upload_file(local_file, bucket_name, s3_key)
-    print(f"Uploaded {local_file} to s3://{bucket_name}/{s3_key}")
+            s3.upload_file(
+                Filename=file_path,
+                Bucket=bucket,
+                Key=key_path,
+                ExtraArgs={
+                    "ContentType": content_type,
+                    "ContentDisposition": "inline"
+                }
+            )
 
 if __name__ == "__main__":
     bucket_name = 'breseqappbucket'
