@@ -443,6 +443,9 @@ if __name__ == "__main__":
             print("Starting upload to S3...")
             if os.path.exists(output_dir):
                 print(f"Uploading output dir: {output_dir.rstrip('/')}")
+                breseq_output = os.path.join(output_dir, "output")
+
+                upload_directory_to_s3(bucket_name, s3_folder, breseq_output)
                 # s3_folder = s3_folder.rstrip('/')
                 # compress the output folder below
                 os.system(f"tar -czf {output_dir.rstrip('/')}.tar.gz -C {output_dir.rstrip('/')} .")
