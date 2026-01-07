@@ -339,7 +339,6 @@ def upload_directory_with_mime(local_dir, bucket, prefix):
     """
     print("running this goddamn function")
     print(local_dir)
-    print(os.walk(local_dir))
     print("")
 
     for root, dirs, files in os.walk(local_dir):
@@ -480,7 +479,7 @@ if __name__ == "__main__":
                 print(f"Uploading output dir: {output_dir.rstrip('/')}")
                 breseq_output = os.path.join(output_dir, "output")
 
-                upload_directory_with_mime(s3_folder, bucket_name, breseq_output)
+                upload_directory_with_mime(breseq_output, bucket_name, breseq_output)
 
                 # s3_folder = s3_folder.rstrip('/')
                 # compress the output folder below
