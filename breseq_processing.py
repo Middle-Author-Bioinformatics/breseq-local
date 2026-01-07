@@ -333,6 +333,7 @@ def upload_file_to_s3(bucket_name, s3_folder, local_file):
     print(f"Uploaded {local_file} to s3://{bucket_name}/{s3_key}")
 
 def upload_directory_with_mime(local_dir, bucket, prefix):
+    s3 = boto3.client('s3')
     """
     Uploads the breseq output directory with correct MIME types so HTML renders in browser.
     """
@@ -368,7 +369,8 @@ if __name__ == "__main__":
 
     seen_folders = load_seen_folders(log_file_path)
 
-    new_folders = [f for f in folders if f not in seen_folders]
+    # new_folders = [f for f in folders if f not in seen_folders]
+    new_folders = ['ark/AMM106A_sGP2zyyLsO']
 
     for s3_folder in new_folders:
         append_seen_folder(log_file_path, s3_folder)
