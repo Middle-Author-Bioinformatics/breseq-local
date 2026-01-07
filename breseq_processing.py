@@ -381,8 +381,8 @@ if __name__ == "__main__":
 
     seen_folders = load_seen_folders(log_file_path)
 
-    # new_folders = [f for f in folders if f not in seen_folders]
-    new_folders = ['ark/AMM106A_sGP2zyyLsO']
+    new_folders = [f for f in folders if f not in seen_folders]
+    # new_folders = ['ark/AMM106A_sGP2zyyLsO']
 
     for s3_folder in new_folders:
         append_seen_folder(log_file_path, s3_folder)
