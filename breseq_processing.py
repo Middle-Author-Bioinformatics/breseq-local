@@ -157,19 +157,23 @@ def download_s3_folder(bucket_name, s3_folder, local_folder):
         for obj in page.get("Contents", []):
             key = obj["Key"]
 
-            # 🚫 SKIP DIRECTORY KEYS
-            if key.endswith("/"):
+            # 🚫 SKIP DIRECTORY MARKERS AND PREFIX ITSELF
+            if key == s3_folder or key == f"{s3_folder}/" or key.endswith("/"):
                 continue
 
             relative_path = os.path.relpath(key, s3_folder)
-            local_file_path = os.path.join(local_folder, relative_path)
 
+            # 🚫 SAFETY: skip "." just in case
+            if relative_path in (".", ""):
+                continue
+
+            local_file_path = os.path.join(local_folder, relative_path)
             os.makedirs(os.path.dirname(local_file_path), exist_ok=True)
 
             print(f"Downloading s3://{bucket_name}/{key} → {local_file_path}")
 
             s3_client.download_file(bucket_name, key, local_file_path)
-
+            
 def find_fastq_files(folder_path):
     fastq_files = [os.path.join(folder_path, f) for f in os.listdir(folder_path) 
                 if f.endswith('.fastq') or f.endswith('.fastq.gz')]
