@@ -345,6 +345,7 @@ def upload_directory_with_mime(s3_folder, bucket, prefix):
     for root, dirs, files in os.walk(prefix):
         print(f"Processing directory: {root}")
         for filename in files:
+            print(filename)
             file_path = os.path.join(root, filename)
             # key_path = os.path.join(prefix, os.path.relpath(file_path, local_dir))
 
