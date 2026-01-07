@@ -148,26 +148,27 @@ def list_user(bucket_name):
                     user = parts[0]
     return user
 
-def download_s3_folder(bucket_name, s3_folder, local_dir):
-    if not os.path.exists(local_dir):
-        os.makedirs(local_dir)
-    
-    paginator = s3_client.get_paginator('list_objects_v2')
-    response_iterator = paginator.paginate(Bucket=bucket_name, Prefix=s3_folder)
+def download_s3_folder(bucket_name, s3_folder, local_folder):
+    os.makedirs(local_folder, exist_ok=True)
 
-    for page in response_iterator:
-        if 'Contents' in page:
-            for obj in page['Contents']:
-                s3_file_path = obj['Key']
-                local_file_path = os.path.join(local_dir, os.path.relpath(s3_file_path, s3_folder))
-                local_file_dir = os.path.dirname(local_file_path)
+    paginator = s3_client.get_paginator("list_objects_v2")
 
-                if not os.path.exists(local_file_dir):
-                    os.makedirs(local_file_dir)
-                
-                s3_client.download_file(bucket_name, s3_file_path, local_file_path)
-    
-    downloaded_folders.append(s3_folder)
+    for page in paginator.paginate(Bucket=bucket_name, Prefix=s3_folder):
+        for obj in page.get("Contents", []):
+            key = obj["Key"]
+
+            # 🚫 SKIP DIRECTORY KEYS
+            if key.endswith("/"):
+                continue
+
+            relative_path = os.path.relpath(key, s3_folder)
+            local_file_path = os.path.join(local_folder, relative_path)
+
+            os.makedirs(os.path.dirname(local_file_path), exist_ok=True)
+
+            print(f"Downloading s3://{bucket_name}/{key} → {local_file_path}")
+
+            s3_client.download_file(bucket_name, key, local_file_path)
 
 def find_fastq_files(folder_path):
     fastq_files = [os.path.join(folder_path, f) for f in os.listdir(folder_path) 
@@ -333,32 +334,32 @@ def upload_file_to_s3(bucket_name, s3_folder, local_file):
     print(f"Uploaded {local_file} to s3://{bucket_name}/{s3_key}")
 
 def upload_directory_with_mime(local_dir, bucket, prefix):
-    s3 = boto3.client('s3')
-    """
-    Uploads the breseq output directory with correct MIME types so HTML renders in browser.
-    """
-    print("running this goddamn function")
-    print(local_dir)
-    print(prefix)
-    print("")
+    import mimetypes
+    import os
 
-    for root, dirs, files in os.walk(local_dir):
-        print(f"Processing directory: {root}")
+    if not os.path.isdir(local_dir):
+        raise RuntimeError(f"HTML output directory does not exist: {local_dir}")
+
+    for root, _, files in os.walk(local_dir):
         for filename in files:
             file_path = os.path.join(root, filename)
-            key_path = os.path.join(prefix, os.path.relpath(file_path, local_dir))
 
-            # Guess MIME type
+            # RELATIVE path inside output/
+            relative_path = os.path.relpath(file_path, local_dir)
+
+            # FINAL S3 KEY (NO LOCAL PATHS)
+            s3_key = f"{prefix}/{relative_path}".replace("\\", "/")
+
             content_type, _ = mimetypes.guess_type(file_path)
             if content_type is None:
                 content_type = "binary/octet-stream"
 
-            print(f"Uploading {file_path} → s3://{bucket}/{key_path} ({content_type})")
+            print(f"Uploading {file_path} → s3://{bucket}/{s3_key}")
 
             s3.upload_file(
                 Filename=file_path,
                 Bucket=bucket,
-                Key=key_path,
+                Key=s3_key,
                 ExtraArgs={
                     "ContentType": content_type,
                     "ContentDisposition": "inline"
@@ -478,9 +479,13 @@ if __name__ == "__main__":
             print("Starting upload to S3...")
             if os.path.exists(output_dir):
                 print(f"Uploading output dir: {output_dir.rstrip('/')}")
-                breseq_output = os.path.join(output_dir, "output")
+                breseq_html_dir = os.path.join(output_dir, "output")
 
-                upload_directory_with_mime(s3_folder, bucket_name, breseq_output)
+                upload_directory_with_mime(
+                    breseq_html_dir,
+                    bucket_name,
+                    f"{s3_folder}/output"
+                )
 
                 # s3_folder = s3_folder.rstrip('/')
                 # compress the output folder below
