@@ -338,6 +338,7 @@ def upload_directory_with_mime(local_dir, bucket, prefix):
     Uploads the breseq output directory with correct MIME types so HTML renders in browser.
     """
     print("running this goddamn function")
+    print(local_dir)
 
     for root, dirs, files in os.walk(local_dir):
         print(f"Processing directory: {root}")
