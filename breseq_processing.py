@@ -173,7 +173,7 @@ def download_s3_folder(bucket_name, s3_folder, local_folder):
             print(f"Downloading s3://{bucket_name}/{key} → {local_file_path}")
 
             s3_client.download_file(bucket_name, key, local_file_path)
-            
+
 def find_fastq_files(folder_path):
     fastq_files = [os.path.join(folder_path, f) for f in os.listdir(folder_path) 
                 if f.endswith('.fastq') or f.endswith('.fastq.gz')]
@@ -338,6 +338,8 @@ def upload_file_to_s3(bucket_name, s3_folder, local_file):
     print(f"Uploaded {local_file} to s3://{bucket_name}/{s3_key}")
 
 def upload_directory_with_mime(local_dir, bucket, prefix):
+
+    s3 = boto3.client('s3')
     import mimetypes
     import os
 
