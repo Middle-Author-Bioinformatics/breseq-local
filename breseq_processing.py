@@ -332,33 +332,33 @@ def upload_file_to_s3(bucket_name, s3_folder, local_file):
     s3_client.upload_file(local_file, bucket_name, s3_key)
     print(f"Uploaded {local_file} to s3://{bucket_name}/{s3_key}")
 
-def upload_directory_with_mime(s3_folder, bucket, prefix):
+def upload_directory_with_mime(local_dir, bucket, prefix):
     s3 = boto3.client('s3')
     """
     Uploads the breseq output directory with correct MIME types so HTML renders in browser.
     """
     print("running this goddamn function")
-    print(s3_folder)
+    print(local_dir)
     print(prefix)
     print("")
 
-    for root, dirs, files in os.walk(prefix):
+    for root, dirs, files in os.walk(local_dir):
         print(f"Processing directory: {root}")
         for filename in files:
             file_path = os.path.join(root, filename)
-            # key_path = os.path.join(prefix, os.path.relpath(file_path, local_dir))
+            key_path = os.path.join(prefix, os.path.relpath(file_path, local_dir))
 
             # Guess MIME type
             content_type, _ = mimetypes.guess_type(file_path)
             if content_type is None:
                 content_type = "binary/octet-stream"
 
-            print(f"Uploading {file_path} → s3://{bucket}/{s3_folder} ({content_type})")
+            print(f"Uploading {file_path} → s3://{bucket}/{key_path} ({content_type})")
 
             s3.upload_file(
                 Filename=file_path,
                 Bucket=bucket,
-                Key=s3_folder,
+                Key=key_path,
                 ExtraArgs={
                     "ContentType": content_type,
                     "ContentDisposition": "inline"
