@@ -339,6 +339,8 @@ def upload_directory_with_mime(local_dir, bucket, prefix):
     """
     print("running this goddamn function")
     print(local_dir)
+    print(os.walk(local_dir))
+    print("")
 
     for root, dirs, files in os.walk(local_dir):
         print(f"Processing directory: {root}")
