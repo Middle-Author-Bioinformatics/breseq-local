@@ -327,10 +327,10 @@ def calculate_coverage_averages(coverage_file, output_dir):
 #             print(f"Uploading {local_file_path} to s3://{bucket_name}/{s3_key}")
 #             s3_client.upload_file(local_file_path, bucket_name, s3_key)
 #
-# def upload_file_to_s3(bucket_name, s3_folder, local_file):
-#     s3_key = os.path.join(s3_folder, os.path.basename(local_file))
-#     s3_client.upload_file(local_file, bucket_name, s3_key)
-#     print(f"Uploaded {local_file} to s3://{bucket_name}/{s3_key}")
+def upload_file_to_s3(bucket_name, s3_folder, local_file):
+    s3_key = os.path.join(s3_folder, os.path.basename(local_file))
+    s3_client.upload_file(local_file, bucket_name, s3_key)
+    print(f"Uploaded {local_file} to s3://{bucket_name}/{s3_key}")
 
 def upload_directory_with_mime(local_dir, bucket, prefix):
     """
@@ -472,7 +472,7 @@ if __name__ == "__main__":
                 print(f"Uploading output dir: {output_dir.rstrip('/')}")
                 breseq_output = os.path.join(output_dir, "output")
 
-                upload_directory_to_s3(bucket_name, s3_folder, breseq_output)
+                upload_directory_with_mime(bucket_name, s3_folder, breseq_output)
                 # s3_folder = s3_folder.rstrip('/')
                 # compress the output folder below
                 os.system(f"tar -czf {output_dir.rstrip('/')}.tar.gz -C {output_dir.rstrip('/')} .")
