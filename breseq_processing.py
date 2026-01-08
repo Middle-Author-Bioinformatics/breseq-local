@@ -490,7 +490,7 @@ if __name__ == "__main__":
                 upload_directory_with_mime(
                     breseq_html_dir,
                     bucket_name,
-                    f"{s3_folder}/output"
+                    f"{s3_folder}output"
                 )
 
                 # s3_folder = s3_folder.rstrip('/')
