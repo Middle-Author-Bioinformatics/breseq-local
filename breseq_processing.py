@@ -560,16 +560,32 @@ if __name__ == "__main__":
                     download_links.append(f"{os.path.basename(file_path)}: {short_url}")
 
         if email and download_links:
-            subject = f"Results ready for your analysis!"
+            subject = f"Your breseq analysis results are ready!"
+            RETENTION_DAYS = "30"
             body = (
-                    f"Hi,\n\n"
-                    "Your sequencing data has been processed. You can access your results at the links below:\n\n"
-                    # "Web Viewer: https://evolvingstem.midauthorbio.com\n\n"
-                    "📥 Downloadable Files:\n" +
-                    "\n".join(download_links) + "\n\n"
-                                                "If you have any questions, feel free to reach out.\n\n"
-                                                "Best regards,\nMAB Team"
+                    "Dear colleague,\n\n"
+                    "Your sequencing data has been analyzed and predicted mutations were identified. "
+                    "You can access your results by downloading the files below.\n\n"
+                    "For convenient browsing, your results will also be available on\n"
+                    "https://breseq.midauthorbio.com/\n"
+                    f"for {RETENTION_DAYS} days, after which they may be removed from the server.\n\n"
+                    "The primary results file is located in the `/output` folder and is called "
+                    "`index.html`. You should also review `summary.html` and `marginal.html`.\n\n"
+                    "More instructions on interpreting breseq output are available here:\n"
+                    "https://barricklab.org/twiki/bin/view/Lab/ToolsBacterialGenomeResequencing\n\n"
+                    "Downloadable files:\n"
+                    + "\n".join(download_links) +
+                    "\n\n"
+                    "If you have further questions, feel free to book a brief consultation here "
+                    "(the first consultation is free):\n"
+                    "https://calendly.com/midauthorbio/consult\n\n"
+                    "If you’re happy with your results, please consider sharing this tool with "
+                    "your colleagues:\n"
+                    "https://breseq.midauthorbio.com/\n\n"
+                    "Wishing you the best with your research,\n"
+                    "Middle Author Bioinformatics, LLC"
             )
+
             send_email_without_attachment(
                 sender_email="binfo@midauthorbio.com",
                 recipient_email=email,
