@@ -576,12 +576,11 @@ if __name__ == "__main__":
                     "Downloadable files:\n"
                     + "\n".join(download_links) +
                     "\n\n"
-                    "If you have further questions, feel free to book a brief consultation here "
+                    "If you have further questions, feel free to reach out for a brief consultation here "
                     "(the first consultation is free):\n"
-                    "https://calendly.com/midauthorbio/consult\n\n"
+                    "https://midauthorbio.com/#contact\n\n"
                     "If you’re happy with your results, please consider sharing this tool with "
-                    "your colleagues:\n"
-                    "https://breseq.midauthorbio.com/\n\n"
+                    "your colleagues\n"
                     "Wishing you the best with your research,\n"
                     "Middle Author Bioinformatics, LLC"
             )
