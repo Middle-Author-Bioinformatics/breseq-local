@@ -180,26 +180,68 @@ def find_fastq_files(folder_path):
     return fastq_files
 
 def run_breseq_command(folder_path, fwd, rev, output_dir, poly, gbk_file):
+    """
+    Run breseq with either single-end or paired-end reads.
+
+    Parameters
+    ----------
+    folder_path : str
+        Path where FASTQ files are located
+    fwd : str
+        Forward (or single-end) FASTQ filename (required)
+    rev : str or None
+        Reverse FASTQ filename (optional)
+    output_dir : str
+        breseq output directory
+    poly : str
+        "clonal" or "population"
+    gbk_file : str
+        Reference GenBank file
+    """
 
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    fwd = os.path.join(folder_path, fwd)
-    rev = os.path.join(folder_path, rev)
+    # Resolve FASTQ paths
+    fwd_path = os.path.join(folder_path, fwd)
+    fastq_files = [fwd_path]
 
-    fastq_files_str = fwd + " " + rev
-    if poly == "clonal":
-        command = f"breseq -l 60 -t -j 12 -o {output_dir} -r {gbk_file} {fastq_files_str}"
-    else:
-        command = f"breseq --polymorphism-prediction -l 60 -t -j 12 -o {output_dir} -r {gbk_file} {fastq_files_str}"
+    if rev and rev != "N/A":
+        rev_path = os.path.join(folder_path, rev)
+        fastq_files.append(rev_path)
 
-    full_command = ['/home/ark/miniconda3/bin/conda', 'run', '-n', 'breseq_env', 'bash', '-c', command]
+    fastq_files_str = " ".join(fastq_files)
+
+    # Build breseq command
+    base_cmd = (
+        f"breseq -l 60 -t -j 12 "
+        f"-o {output_dir} "
+        f"-r {gbk_file} "
+    )
+
+    if poly != "clonal":
+        base_cmd = base_cmd.replace("breseq", "breseq --polymorphism-prediction")
+
+    command = base_cmd + fastq_files_str
+
+    full_command = [
+        "/home/ark/miniconda3/bin/conda",
+        "run",
+        "-n",
+        "breseq_env",
+        "bash",
+        "-c",
+        command
+    ]
 
     result = subprocess.run(full_command, capture_output=True, text=True)
+
     if result.returncode != 0:
-        print(f"Error running breseq: {result.stderr}")
+        print(f"[breseq] ERROR in {folder_path}")
+        print(result.stderr)
     else:
-        print(f"Breseq ran successfully for folder: {folder_path}")
+        mode = "paired-end" if len(fastq_files) == 2 else "single-end"
+        print(f"[breseq] Success ({mode}) → {output_dir}")
 
 def run_samtools_command(output_dir):
     bam_file = os.path.join(output_dir, "data", "reference.bam")
@@ -433,7 +475,29 @@ if __name__ == "__main__":
         if not os.path.exists(output_dir):
             print("Output directory does not exist. Running Breseq.")
             if fwd and rev:
-                run_breseq_command(local_folder, fwd, rev, output_dir, poly, referenceFile)
+                print("Running breseq with paired-end reads")
+                run_breseq_command(
+                    local_folder,
+                    fwd,
+                    rev,
+                    output_dir,
+                    poly,
+                    referenceFile
+                )
+
+            elif fwd:
+                print("Running breseq with single-end reads")
+                run_breseq_command(
+                    local_folder,
+                    fwd,
+                    None,
+                    output_dir,
+                    poly,
+                    referenceFile
+                )
+
+            else:
+                print("No forward reads found — skipping breseq")
         else:
             print("Output directory already exists. Skipping Breseq.")
 
