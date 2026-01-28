@@ -636,7 +636,7 @@ if __name__ == "__main__":
                     "The primary results file is located in the `/output` folder and is called "
                     "`index.html`. You should also review `summary.html` and `marginal.html`.\n\n"
                     "More instructions on interpreting breseq output are available here:\n"
-                    "https://barricklab.org/twiki/bin/view/Lab/ToolsBacterialGenomeResequencing\n\n"
+                    "https://github.com/barricklab/breseq/wiki\n\n"
                     "Downloadable files:\n"
                     + "\n".join(download_links) +
                     "\n\n"
