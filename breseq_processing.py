@@ -214,7 +214,7 @@ def run_breseq_command(folder_path, fwd, rev, output_dir, poly, gbk_file):
 
     # Build breseq command
     base_cmd = (
-        f"breseq -l 60 -t -j 12 -l 70"
+        f"breseq -l 60 -t -j 12 -l 70 "
         f"-o {output_dir} "
         f"-r {gbk_file} "
     )
