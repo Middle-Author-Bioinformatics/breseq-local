@@ -17,6 +17,8 @@ downloaded_folders = []
 
 log_file_path = '/home/ark/MAB/breseq/processed_folders.log'
 
+users = ['ark', 'vaughn.cooper', 'jbarrick', 'distdev', 'ammatela', 'cws43', 'nac209', 'dnelson1', 'frotis', 'foley', 'cruhe1', 'ondecka', 'smueller1', 'eostrow']
+
 def extract_form_data(folder_path):
     form_file = os.path.join(folder_path, "form-data.txt")
     email = reference = accession = poly = None
@@ -136,7 +138,7 @@ def list_folders_in_bucket(bucket_name):
                 if len(parts) >= 3:
                     user = parts[0]
                     subfolder = parts[1]
-                    if user in ['ark', 'vaughn.cooper', 'jbarrick', 'distdev', 'ammatela']:
+                    if user in users:
                         print(user)
                         folders.add(f"{user}/{subfolder}/")
     return sorted(folders)
