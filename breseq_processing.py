@@ -2,7 +2,8 @@ import boto3
 import os
 import subprocess
 import json
-from bs4 import BeautifulSoup
+from pathlib import Path
+# from bs4 import BeautifulSoup
 import pandas as pd
 from send_email import send_email_without_attachment
 from gen_presign_url import generate_presigned_url, shorten_url
@@ -15,56 +16,6 @@ s3_client = boto3.client('s3')
 downloaded_folders = []
 
 log_file_path = '/home/ark/MAB/breseq/processed_folders.log'
-
-# def prepare_and_upload_reference(contigsFile: str, original_s3_path: str):
-#     """
-#     Takes the provided contigsFile, renames it to reference.fa,
-#     creates a reference.fa.fai index, and uploads both files
-#     back to the S3 bucket where the contigs came from.
-#
-#     Parameters
-#     ----------
-#     contigsFile : str
-#         Local path to the contigs FASTA file that already exists on disk.
-#     original_s3_path : str
-#         Full S3 URI where the contigs were originally located, e.g.:
-#         's3://mybucket/userX/job123/contigs.fa'
-#     """
-#
-#     s3 = boto3.client("s3")
-#
-#     # -------------------------------------------------------
-#     # Derive bucket + prefix from original S3 path
-#     # -------------------------------------------------------
-#     if not original_s3_path.startswith("s3://"):
-#         raise ValueError("original_s3_path must start with s3://")
-#
-#     no_prefix = original_s3_path.replace("s3://", "")
-#     bucket = no_prefix.split("/")[0]
-#     key_parts = no_prefix.split("/")[1:-1]   # everything except last element
-#     prefix = "/".join(key_parts)
-#     if prefix != "":
-#         prefix += "/"   # add trailing slash
-#
-#     # -------------------------------------------------------
-#     # Create local reference files
-#     # -------------------------------------------------------
-#     reference_file = "reference.fa"
-#     index_file = "reference.fa.fai"
-#
-#     # Copy/rename the contigs file
-#     subprocess.run(["cp", contigsFile, reference_file], check=True)
-#
-#     # Create the FASTA index
-#     subprocess.run(["samtools", "faidx", reference_file], check=True)
-#
-#     # -------------------------------------------------------
-#     # Upload both files to the same bucket/prefix
-#     # -------------------------------------------------------
-#     s3.upload_file(reference_file, bucket, prefix + "reference.fa")
-#     s3.upload_file(index_file, bucket, prefix + "reference.fa.fai")
-#
-#     print(f"Uploaded reference.fa and reference.fa.fai to s3://{bucket}/{prefix}")
 
 def extract_form_data(folder_path):
     form_file = os.path.join(folder_path, "form-data.txt")
@@ -103,6 +54,63 @@ def extract_form_data(folder_path):
         contigsFile = "None"
 
     return email, referenceFile, poly, fwd, rev
+
+
+def generate_mutation_json(output_dir):
+    """
+    Generate mutation_predictions.json from breseq output.gd
+    """
+
+    output_dir = Path(output_dir)
+    gd_file = output_dir / "output" / "output.gd"
+    json_file = output_dir / "mutation_predictions.json"
+
+    if not gd_file.exists():
+        print(f"[mutation-json] ERROR: {gd_file} not found")
+        return False
+
+    mutations = []
+
+    with open(gd_file) as f:
+        for line in f:
+            if line.startswith("#") or not line.strip():
+                continue
+
+            parts = line.strip().split("\t")
+            record_type = parts[0]
+
+            # Only real mutation records
+            if record_type not in {"SNP", "DEL", "INS", "SUB", "AMP", "MOB", "INV", "CON"}:
+                continue
+
+            try:
+                seq_id = parts[2]
+                position = int(parts[3])
+            except (IndexError, ValueError):
+                continue
+
+            # Parse key=value fields
+            info = {}
+            for field in parts[4:]:
+                if "=" in field:
+                    k, v = field.split("=", 1)
+                    info[k] = v
+
+            mutations.append({
+                "seq_id": seq_id,
+                "position": position,
+                "mutation": info.get("mutation", record_type),
+                "annotation": info.get("annotation", ""),
+                "gene": info.get("gene", ""),
+                "description": info.get("product", "")
+            })
+
+    with open(json_file, "w") as f:
+        json.dump(mutations, f, indent=2)
+
+    print(f"[mutation-json] Wrote {len(mutations)} mutations → {json_file}")
+    return True
+
 
 def load_seen_folders(log_path):
     if os.path.exists(log_path):
@@ -262,81 +270,81 @@ def run_samtools_command(output_dir):
     return coverage_file
 
 
-def extract_mutations(output_dir):
-    """
-    Parse breseq output/index.html and write mutation_predictions.json
-
-    We now:
-      * treat column 1 (second <td>) as seq_id
-      * write "seq_id" into the JSON
-      * keep backward-compatibility with 6-column tables (no seq_id)
-    """
-    html_file_path = os.path.join(output_dir, "output", "index.html")
-
-    if not os.path.exists(html_file_path):
-        print(f"Error: index.html not found at {html_file_path}")
-        return
-
-    with open(html_file_path, "r", encoding="utf-8") as f:
-        soup = BeautifulSoup(f.read(), "html.parser")
-
-    mutation_table = None
-    for table in soup.find_all("table"):
-        if table.find("th", string="Predicted mutations"):
-            mutation_table = table
-            break
-
-    if mutation_table is None:
-        print("Error: Could not find mutation table.")
-        return
-
-    rows = mutation_table.find_all("tr", class_="normal_table_row")
-    print(f"Found {len(rows)} mutation rows")
-
-    data = []
-
-    for row in rows:
-        cols = row.find_all("td")
-        n = len(cols)
-        if n < 6:
-            print("Skipping row with too few columns:", n)
-            continue
-
-        # Column layout in your breseq HTML:
-        # n == 6 : evidence | position | mutation | annotation | gene | description
-        # n >= 7: evidence | seq_id  | position | mutation   | annotation | gene | description
-        evidence = cols[0].get_text(strip=True)
-
-        if n == 6:
-            seq_id = None
-            pos = cols[1].get_text(strip=True).replace(",", "")
-            mut = cols[2].get_text(strip=True)
-            annotation = cols[3].get_text(strip=True)
-            gene = cols[4].get_text(strip=True)
-            description = cols[5].get_text(strip=True)
-        else:
-            seq_id = cols[1].get_text(strip=True)
-            pos = cols[2].get_text(strip=True).replace(",", "")
-            mut = cols[3].get_text(strip=True)
-            annotation = cols[4].get_text(strip=True)
-            gene = cols[5].get_text(strip=True)
-            description = cols[6].get_text(strip=True)
-
-        data.append({
-            "evidence": evidence,
-            "seq_id": seq_id,
-            "position": pos,
-            "mutation": mut,
-            "annotation": annotation,
-            "gene": gene,
-            "description": description,
-        })
-
-    out_json = os.path.join(output_dir, "mutation_predictions.json")
-    with open(out_json, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=4, ensure_ascii=False)
-
-    print(f"Wrote {len(data)} mutations to {out_json}")
+# def extract_mutations(output_dir):
+#     """
+#     Parse breseq output/index.html and write mutation_predictions.json
+#
+#     We now:
+#       * treat column 1 (second <td>) as seq_id
+#       * write "seq_id" into the JSON
+#       * keep backward-compatibility with 6-column tables (no seq_id)
+#     """
+#     html_file_path = os.path.join(output_dir, "output", "index.html")
+#
+#     if not os.path.exists(html_file_path):
+#         print(f"Error: index.html not found at {html_file_path}")
+#         return
+#
+#     with open(html_file_path, "r", encoding="utf-8") as f:
+#         soup = BeautifulSoup(f.read(), "html.parser")
+#
+#     mutation_table = None
+#     for table in soup.find_all("table"):
+#         if table.find("th", string="Predicted mutations"):
+#             mutation_table = table
+#             break
+#
+#     if mutation_table is None:
+#         print("Error: Could not find mutation table.")
+#         return
+#
+#     rows = mutation_table.find_all("tr", class_="normal_table_row")
+#     print(f"Found {len(rows)} mutation rows")
+#
+#     data = []
+#
+#     for row in rows:
+#         cols = row.find_all("td")
+#         n = len(cols)
+#         if n < 6:
+#             print("Skipping row with too few columns:", n)
+#             continue
+#
+#         # Column layout in your breseq HTML:
+#         # n == 6 : evidence | position | mutation | annotation | gene | description
+#         # n >= 7: evidence | seq_id  | position | mutation   | annotation | gene | description
+#         evidence = cols[0].get_text(strip=True)
+#
+#         if n == 6:
+#             seq_id = None
+#             pos = cols[1].get_text(strip=True).replace(",", "")
+#             mut = cols[2].get_text(strip=True)
+#             annotation = cols[3].get_text(strip=True)
+#             gene = cols[4].get_text(strip=True)
+#             description = cols[5].get_text(strip=True)
+#         else:
+#             seq_id = cols[1].get_text(strip=True)
+#             pos = cols[2].get_text(strip=True).replace(",", "")
+#             mut = cols[3].get_text(strip=True)
+#             annotation = cols[4].get_text(strip=True)
+#             gene = cols[5].get_text(strip=True)
+#             description = cols[6].get_text(strip=True)
+#
+#         data.append({
+#             "evidence": evidence,
+#             "seq_id": seq_id,
+#             "position": pos,
+#             "mutation": mut,
+#             "annotation": annotation,
+#             "gene": gene,
+#             "description": description,
+#         })
+#
+#     out_json = os.path.join(output_dir, "mutation_predictions.json")
+#     with open(out_json, "w", encoding="utf-8") as f:
+#         json.dump(data, f, indent=4, ensure_ascii=False)
+#
+#     print(f"Wrote {len(data)} mutations to {out_json}")
 
 
 def calculate_coverage_averages(coverage_file, output_dir):
@@ -450,7 +458,7 @@ if __name__ == "__main__":
                 "We have received your sequencing data.\n"
                 "You will recieve another email once the results are ready.\n\n"
                 "If you have any questions, feel free to reach out.\n\n"
-                "Best regards,\nMAB Team\n"
+                "Best regards,\nEvolvingSTEM Team\n"
             )
             sender_email = "binfo@midauthorbio.com"
             send_email_without_attachment(
@@ -506,13 +514,17 @@ if __name__ == "__main__":
         if os.path.exists(output_dir):
             print(f"Processing output directory: {output_dir}")
 
-            # Mutation file extraction
+            # Mutation file extraction (from breseq output.gd → JSON)
             mutation_file = os.path.join(output_dir, "mutation_predictions.json")
-            extract_mutations(output_dir)
-            if os.path.exists(mutation_file):
-                print(f"Mutation file exists: {mutation_file}")
+
+            if not os.path.exists(mutation_file):
+                print("[mutation-json] Missing → generating from output.gd")
+                success = generate_mutation_json(output_dir)
+
+                if not success:
+                    print("[mutation-json] FAILED to generate mutation JSON")
             else:
-                print(f"Mutation file does not exist: {mutation_file}")
+                print(f"[mutation-json] Found existing mutation file: {mutation_file}")
 
             # Coverage file processing
             # coverage_file = os.path.join(output_dir, "data", "coverage.txt")
@@ -640,13 +652,6 @@ if __name__ == "__main__":
                     "Downloadable files:\n"
                     + "\n".join(download_links) +
                     "\n\n"
-                    "If you have further questions, feel free to reach out for a brief consultation here "
-                    "(the first consultation is free):\n"
-                    "https://midauthorbio.com/#contact\n\n"
-                    "If you’re happy with your results, please consider sharing this tool with "
-                    "your colleagues\n"
-                    "Wishing you the best with your research,\n"
-                    "Middle Author Bioinformatics, LLC"
             )
 
             send_email_without_attachment(
