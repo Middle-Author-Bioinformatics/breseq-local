@@ -44,7 +44,10 @@ echo $ACC >> accessions.txt
 eval "$(conda shell.bash hook)"
 conda activate bit2
 
+echo bit-dl-ncbi-assemblies -w accessions.txt -j 12 -f genbank
 bit-dl-ncbi-assemblies -w accessions.txt -j 12 -f genbank
+
+echo bit-dl-ncbi-assemblies -w accessions.txt -j 12 -f fasta
 bit-dl-ncbi-assemblies -w accessions.txt -j 12 -f fasta
 
 gzip -d ${ACC}.gb.gz
