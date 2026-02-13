@@ -41,7 +41,7 @@ done
 
 echo $ACC >> accessions.txt
 
-eval "$(conda shell.bash hook)"
+eval "$(/home/ark/miniconda3/bin/conda shell.bash hook)"
 conda activate bit2
 
 echo bit-dl-ncbi-assemblies -w accessions.txt -j 12 -f genbank
