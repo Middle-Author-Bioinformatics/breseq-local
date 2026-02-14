@@ -18,7 +18,7 @@ downloaded_folders = []
 log_file_path = '/home/ark/MAB/breseq/processed_folders.log'
 
 users = ['ark', 'vaughn.cooper', 'jbarrick', 'distdev', 'ammatela', 'cws43', 'nac209', 'dnelson1', 'frotis', 'foley', 'cruhe1', 'ondecka', 'smueller1', 'eostrow']
-
+app = "breseq"
 def extract_form_data(folder_path):
     form_file = os.path.join(folder_path, "form-data.txt")
     email = reference = accession = poly = None
@@ -39,6 +39,8 @@ def extract_form_data(folder_path):
                     fwd = line.strip().split(" ")[1]
                 elif line.startswith("ReverseReads"):
                     rev = line.strip().split(" ")[1]
+                elif line.startswith("evolving"):
+                    app = "evolvingstem"
 
     if reference != "N/A":
         referenceFile = os.path.join(folder_path, reference)
@@ -639,23 +641,42 @@ if __name__ == "__main__":
                     download_links.append(f"{os.path.basename(file_path)}: {short_url}")
 
         if email and download_links:
-            subject = f"Your breseq analysis results are ready!"
-            RETENTION_DAYS = "30"
-            body = (
-                    "Dear colleague,\n\n"
-                    "Your sequencing data has been analyzed and predicted mutations were identified. "
-                    "You can access your results by downloading the files below.\n\n"
-                    "For convenient browsing, your results will also be available on\n"
-                    "https://breseq.midauthorbio.com/\n"
-                    f"for {RETENTION_DAYS} days, after which they may be removed from the server.\n\n"
-                    "The primary results file is located in the `/output` folder and is called "
-                    "`index.html`. You should also review `summary.html` and `marginal.html`.\n\n"
-                    "More instructions on interpreting breseq output are available here:\n"
-                    "https://github.com/barricklab/breseq/wiki\n\n"
-                    "Downloadable files:\n"
-                    + "\n".join(download_links) +
-                    "\n\n"
-            )
+            if app == "evolvingstem":
+                subject = f"Your breseq analysis results are ready!"
+                RETENTION_DAYS = "30"
+                body = (
+                        "Dear colleague,\n\n"
+                        "Your sequencing data has been analyzed and predicted mutations were identified. "
+                        "You can access your results by downloading the files below.\n\n"
+                        "For convenient browsing, your results will also be available on\n"
+                        "https://breseq.midauthorbio.com/\n"
+                        f"for {RETENTION_DAYS} days, after which they may be removed from the server.\n\n"
+                        "The primary results file is located in the `/output` folder and is called "
+                        "`index.html`. You should also review `summary.html` and `marginal.html`.\n\n"
+                        "More instructions on interpreting breseq output are available here:\n"
+                        "https://github.com/barricklab/breseq/wiki\n\n"
+                        "Downloadable files:\n"
+                        + "\n".join(download_links) +
+                        "\n\n"
+                )
+            else:
+                subject = f"Your breseq analysis results are ready!"
+                RETENTION_DAYS = "30"
+                body = (
+                        "Dear colleague,\n\n"
+                        "Your sequencing data has been analyzed and predicted mutations were identified. "
+                        "You can access your results by downloading the files below.\n\n"
+                        "For convenient browsing, your results will also be available on\n"
+                        "https://evolvingstem.midauthorbio.com/\n"
+                        f"for {RETENTION_DAYS} days, after which they may be removed from the server.\n\n"
+                        "The primary results file is located in the `/output` folder and is called "
+                        "`index.html`. You should also review `summary.html` and `marginal.html`.\n\n"
+                        "More instructions on interpreting breseq output are available here:\n"
+                        "https://github.com/barricklab/breseq/wiki\n\n"
+                        "Downloadable files:\n"
+                        + "\n".join(download_links) +
+                        "\n\n"
+                )
 
             send_email_without_attachment(
                 sender_email="binfo@midauthorbio.com",
