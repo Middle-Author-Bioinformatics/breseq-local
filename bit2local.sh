@@ -39,7 +39,7 @@ while [ "$1" != "" ]; do
     shift
 done
 
-echo $ACC >> accessions.txt
+echo $ACC > accessions.txt
 
 eval "$(/home/ark/miniconda3/bin/conda shell.bash hook)"
 conda activate bit2
