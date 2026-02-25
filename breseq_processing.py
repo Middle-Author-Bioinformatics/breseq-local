@@ -233,7 +233,7 @@ def run_breseq_command(folder_path, fwd, rev, output_dir, poly, gbk_file):
     )
 
     if poly != "clonal":
-        base_cmd = base_cmd.replace("breseq", "breseq --polymorphism-prediction")
+        base_cmd = base_cmd.replace("breseq", "breseq --polymorphism-prediction ")
 
     command = base_cmd + fastq_files_str
 
