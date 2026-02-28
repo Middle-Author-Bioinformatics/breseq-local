@@ -17,11 +17,16 @@ downloaded_folders = []
 
 log_file_path = '/home/ark/MAB/breseq/processed_folders.log'
 
+speciesDict = {"Pseudomonas fluorescens SBW25": "GCF_000009225.2",
+                "Escherichia coli K-12 MG1655": "GCA_000005845.2",
+               "Bacillus subtilis 168": "GCA_000009045.1",
+               "Pseudomonas aeruginosa PAO1": "GCA_000006765.1"}
+
 users = ['ark', 'vaughn.cooper', 'jbarrick', 'distdev', 'ammatela', 'cws43', 'nac209', 'dnelson1', 'frotis', 'foley', 'cruhe1', 'ondecka', 'smueller1', 'eostrow']
 app = "breseq"
 def extract_form_data(folder_path):
     form_file = os.path.join(folder_path, "form-data.txt")
-    email = reference = accession = poly = None
+    email = reference = accession = poly = species = None
     if os.path.exists(form_file):
         with open(form_file, "r") as f:
             for line in f:
@@ -33,6 +38,8 @@ def extract_form_data(folder_path):
                 #     contigs = line.strip().split(" ")[1]
                 elif line.startswith("Accession"):
                     accession = line.strip().split(" ")[1]
+                elif line.startswith("SpeciesPreset"):
+                    species = " ".join(line.strip().split(" ", 1)[1:])
                 elif line.startswith("Polymorphic"):
                     poly = " ".join(line.strip().split(" ", 2)[1:])
                 elif line.startswith("ForwardReads"):
@@ -50,13 +57,18 @@ def extract_form_data(folder_path):
         os.system(f"/home/ark/MAB/bin/breseq-local/bit2local.sh -a {accession} -o {folder_path}")
         reference = accession + ".gb"
         referenceFile = os.path.join(folder_path, reference)
-        print(referenceFile)
+        # print(referenceFile)
 
-        contigs = accession + ".fa"
-        contigsFile = os.path.join(folder_path, contigs)
+        # contigs = accession + ".fa"
+        # contigsFile = os.path.join(folder_path, contigs)
+
+    elif species and species != "N/A":
+        speciesAcc = speciesDict[species]
+        referenceFile = f"/home/ark/MAB/breseq/references/{speciesAcc}.gb"
+
     else:
         referenceFile = "None"
-        contigsFile = "None"
+        # contigsFile = "None"
 
     return email, referenceFile, poly, fwd, rev
 
