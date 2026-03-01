@@ -30,6 +30,7 @@ def extract_form_data(folder_path):
     if os.path.exists(form_file):
         with open(form_file, "r") as f:
             for line in f:
+                print(line.strip())
                 if line.startswith("Email"):
                     email = line.strip().split(" ", 1)[1]
                 elif line.startswith("ReferenceFile"):
