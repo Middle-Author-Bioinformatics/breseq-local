@@ -63,8 +63,11 @@ def extract_form_data(folder_path):
         # contigsFile = os.path.join(folder_path, contigs)
 
     elif species and species != "N/A":
+        print(species)
         speciesAcc = speciesDict[species]
+        print(speciesAcc)
         referenceFile = f"/home/ark/MAB/breseq/references/{speciesAcc}.gb"
+        print(referenceFile)
 
     else:
         referenceFile = "None"
