@@ -35,10 +35,10 @@ def extract_form_data(folder_path):
                 if re.search("Email", line):
                     email = line.strip().split(" ", 1)[1]
                 elif re.search("SpeciesPreset", line):
-                    species = " ".join(line.strip().split(" ", 1)[1:])
+                    species = " ".join(line.split(" ")[1:])
                     print(line)
                     print(species)
-                    print("")
+                    print("+")
                 elif re.search("Accession", line):
                     accession = line.strip().split(" ")[1]
                 elif re.search("ReferenceFile", line):
