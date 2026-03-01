@@ -2,6 +2,7 @@ import boto3
 import os
 import subprocess
 import json
+import re
 from pathlib import Path
 # from bs4 import BeautifulSoup
 import pandas as pd
@@ -31,23 +32,24 @@ def extract_form_data(folder_path):
         with open(form_file, "r") as f:
             for line in f:
                 print(line.strip())
-                if line.startswith("Email"):
+                if re.search("Email", line):
                     email = line.strip().split(" ", 1)[1]
-                elif line.startswith("SpeciesPreset"):
+                elif re.search("SpeciesPreset", line):
                     species = " ".join(line.strip().split(" ", 1)[1:])
-                elif line.startswith("Accession"):
+                    print(line)
+                    print(species)
+                    print("")
+                elif re.search("Accession", line):
                     accession = line.strip().split(" ")[1]
-                elif line.startswith("ReferenceFile"):
+                elif re.search("ReferenceFile", line):
                     reference = line.strip().split(" ")[1]
-                elif line.startswith("SpeciesPreset"):
-                    species = " ".join(line.strip().split(" ", 1)[1:])
-                elif line.startswith("Polymorphic"):
+                elif re.search("Polymorphic", line):
                     poly = " ".join(line.strip().split(" ", 2)[1:])
-                elif line.startswith("ForwardReads"):
+                elif re.search("ForwardReads", line):
                     fwd = line.strip().split(" ")[1]
-                elif line.startswith("ReverseReads"):
+                elif re.search("ReverseReads", line):
                     rev = line.strip().split(" ")[1]
-                elif line.startswith("evolving"):
+                elif re.search("evolving", line):
                     app = "evolvingstem"
 
     if reference != "N/A":
