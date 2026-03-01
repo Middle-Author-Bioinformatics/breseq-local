@@ -31,14 +31,10 @@ def extract_form_data(folder_path):
     if os.path.exists(form_file):
         with open(form_file, "r") as f:
             for line in f:
-                print(line.strip())
                 if re.search("Email", line):
                     email = line.strip().split(" ", 1)[1]
                 elif re.search("SpeciesPreset", line):
                     species = " ".join(line.rstrip().split(" ")[1:])
-                    print(line.rstrip().split(" ")[1:])
-                    print(species)
-                    print("+")
                 elif re.search("Accession", line):
                     accession = line.strip().split(" ")[1]
                 elif re.search("ReferenceFile", line):
@@ -53,14 +49,10 @@ def extract_form_data(folder_path):
                     app = "evolvingstem"
 
     if reference != "N/A":
-        print(reference)
-        print("ref")
         referenceFile = os.path.join(folder_path, reference)
         # contigsFile = os.path.join(folder_path, contigs)
 
     elif accession != "N/A":
-        print(accession)
-        print("acc")
         os.system(f"/home/ark/MAB/bin/breseq-local/bit2local.sh -a {accession} -o {folder_path}")
         reference = accession + ".gb"
         referenceFile = os.path.join(folder_path, reference)
@@ -70,11 +62,8 @@ def extract_form_data(folder_path):
         # contigsFile = os.path.join(folder_path, contigs)
 
     elif species != "N/A":
-        print(species)
         speciesAcc = speciesDict[species]
-        print(speciesAcc)
         referenceFile = f"/home/ark/MAB/breseq/references/{speciesAcc}.gb"
-        print(referenceFile)
 
     else:
         referenceFile = "None"
