@@ -65,7 +65,7 @@ def extract_form_data(folder_path):
         # contigs = accession + ".fa"
         # contigsFile = os.path.join(folder_path, contigs)
 
-    elif species and species != "N/A":
+    elif species != "N/A":
         print(species)
         speciesAcc = speciesDict[species]
         print(speciesAcc)
