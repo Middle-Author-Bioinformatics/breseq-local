@@ -33,12 +33,12 @@ def extract_form_data(folder_path):
                 print(line.strip())
                 if line.startswith("Email"):
                     email = line.strip().split(" ", 1)[1]
-                elif line.startswith("ReferenceFile"):
-                    reference = line.strip().split(" ")[1]
-                # elif line.startswith("ContigsFile"):
-                #     contigs = line.strip().split(" ")[1]
+                elif line.startswith("SpeciesPreset"):
+                    species = " ".join(line.strip().split(" ", 1)[1:])
                 elif line.startswith("Accession"):
                     accession = line.strip().split(" ")[1]
+                elif line.startswith("ReferenceFile"):
+                    reference = line.strip().split(" ")[1]
                 elif line.startswith("SpeciesPreset"):
                     species = " ".join(line.strip().split(" ", 1)[1:])
                 elif line.startswith("Polymorphic"):
