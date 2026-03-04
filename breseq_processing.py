@@ -18,10 +18,10 @@ downloaded_folders = []
 
 log_file_path = '/home/ark/MAB/breseq/processed_folders.log'
 
-speciesDict = {"Pseudomonas fluorescens SBW25": "GCF_000009225.2",
+speciesDict = {"Pseudomonas fluorescens SBW25": "GCA_931907645.1",
                 "Escherichia coli K-12 MG1655": "GCA_000005845.2",
                "Bacillus subtilis 168": "GCA_000009045.1",
-               "Pseudomonas aeruginosa PAO1": "GCA_931907645.1"}
+               "Pseudomonas aeruginosa PAO1": "GCA_000006765.1"}
 
 users = ['ark', 'vaughn.cooper', 'jbarrick', 'distdev', 'ammatela', 'cws43', 'nac209', 'dnelson1', 'frotis', 'foley', 'cruhe1', 'ondecka', 'smueller1', 'eostrow']
 app = "breseq"
