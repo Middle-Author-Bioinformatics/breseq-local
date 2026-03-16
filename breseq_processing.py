@@ -23,7 +23,9 @@ speciesDict = {"Pseudomonas fluorescens SBW25": "GCA_931907645.1",
                "Bacillus subtilis 168": "GCA_000009045.1",
                "Pseudomonas aeruginosa PAO1": "GCA_000006765.1"}
 
-users = ['ark', 'vaughn.cooper', 'jbarrick', 'distdev', 'ammatela', 'cws43', 'nac209', 'dnelson1', 'frotis', 'foley', 'cruhe1', 'ondecka', 'smueller1', 'eostrow']
+users = ['ark', 'vaughn.cooper', 'jbarrick', 'distdev', 'ammatela',
+         'cws43', 'nac209', 'dnelson1', 'frotis', 'foley', 'cruhe1', 'ondecka', 'smueller1',
+         'eostrow', 'gfd5230', 'sls6550']
 app = "breseq"
 def extract_form_data(folder_path):
     form_file = os.path.join(folder_path, "form-data.txt")
