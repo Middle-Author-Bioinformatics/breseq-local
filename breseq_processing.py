@@ -440,6 +440,17 @@ def upload_directory_with_mime(local_dir, bucket, prefix):
                 }
             )
 
+def s3_key_exists(bucket_name, key):
+    try:
+        s3_client.head_object(Bucket=bucket_name, Key=key)
+        return True
+    except s3_client.exceptions.ClientError as e:
+        error_code = e.response.get("Error", {}).get("Code", "")
+        if error_code in ("404", "NoSuchKey", "NotFound"):
+            return False
+        raise
+
+
 if __name__ == "__main__":
     bucket_name = 'breseqappbucket'
     local_base_dir = '/home/ark/MAB/breseq/data'
@@ -449,11 +460,20 @@ if __name__ == "__main__":
 
     seen_folders = load_seen_folders(log_file_path)
 
-    new_folders = [f for f in folders if f not in seen_folders]
-    # new_folders = ['ark/AMM106A_sGP2zyyLsO']
+    new_folders = []
 
-    for s3_folder in new_folders:
-        append_seen_folder(log_file_path, s3_folder)
+    for s3_folder in folders:
+        if s3_folder in seen_folders:
+            continue
+
+        existing_result_key = f"{s3_folder}output/index.html"
+
+        if s3_key_exists(bucket_name, existing_result_key):
+            print(f"[SKIP] Found existing S3 results for {s3_folder} at s3://{bucket_name}/{existing_result_key}")
+            append_seen_folder(log_file_path, s3_folder)
+            continue
+
+        new_folders.append(s3_folder)
 
     # Debugging: Check if folders are retrieved
     print(f"Folders found in bucket: {folders}")
