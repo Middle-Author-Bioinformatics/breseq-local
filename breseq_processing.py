@@ -26,7 +26,11 @@ speciesDict = {"Pseudomonas fluorescens SBW25": "GCA_931907645.1",
 users = ['ark', 'vaughn.cooper', 'jbarrick', 'distdev', 'ammatela',
          'cws43', 'nac209', 'dnelson1', 'frotis', 'foley', 'cruhe1', 'ondecka', 'smueller1',
          'eostrow', 'gfd5230', 'sls6550']
+
 app = "breseq"
+
+preset_dir = "/home/ark/MAB/breseq/fastq_presets"
+
 def extract_form_data(folder_path):
     form_file = os.path.join(folder_path, "form-data.txt")
     email = reference = accession = poly = species = None
@@ -35,6 +39,10 @@ def extract_form_data(folder_path):
             for line in f:
                 if re.search("Email", line):
                     email = line.strip().split(" ", 1)[1]
+                elif re.search("FASTQMode", line):
+                    fastq_mode = line.strip().split(" ")[1]
+                elif re.search("FASTQPreset", line):
+                    fastq_preset = line.strip().split(" ")[1]
                 elif re.search("SpeciesPreset", line):
                     species = " ".join(line.rstrip().split(" ")[1:])
                 elif re.search("Accession", line):
@@ -50,18 +58,22 @@ def extract_form_data(folder_path):
                 elif re.search("evolving", line):
                     app = "evolvingstem"
 
+    if fastq_mode == "preset":
+        fwd = f"{fastq_preset}_fwdpaired.fastq.gz"
+        rev = f"{fastq_preset}_revpaired.fastq.gz"
+        fwd_path = os.path.join(preset_dir, fwd)
+        rev_path = os.path.join(preset_dir, rev)
+    else:
+        fwd_path = os.path.join(folder_path, fwd)
+        rev_path = os.path.join(folder_path, rev)
+
     if reference != "N/A":
         referenceFile = os.path.join(folder_path, reference)
-        # contigsFile = os.path.join(folder_path, contigs)
 
     elif accession != "N/A":
         os.system(f"/home/ark/MAB/bin/breseq-local/bit2local.sh -a {accession} -o {folder_path}")
         reference = accession + ".gb"
         referenceFile = os.path.join(folder_path, reference)
-        # print(referenceFile)
-
-        # contigs = accession + ".fa"
-        # contigsFile = os.path.join(folder_path, contigs)
 
     elif species != "N/A":
         speciesAcc = speciesDict[species]
@@ -69,9 +81,8 @@ def extract_form_data(folder_path):
 
     else:
         referenceFile = "None"
-        # contigsFile = "None"
 
-    return email, referenceFile, poly, fwd, rev
+    return email, referenceFile, poly, fwd_path, rev_path
 
 
 def generate_mutation_json(output_dir):
@@ -213,12 +224,12 @@ def run_breseq_command(folder_path, fwd, rev, output_dir, poly, gbk_file):
     os.makedirs(output_dir, exist_ok=True)
 
     # Resolve FASTQ paths
-    fwd_path = os.path.join(folder_path, fwd)
-    fastq_files = [fwd_path]
+    # fwd_path = os.path.join(folder_path, fwd)
+    fastq_files = [fwd]
 
     if rev and rev != "N/A":
-        rev_path = os.path.join(folder_path, rev)
-        fastq_files.append(rev_path)
+        # rev_path = os.path.join(folder_path, rev)
+        fastq_files.append(rev)
 
     # ---- sanity checks (fail early, not later) ----
     for f in fastq_files + [gbk_file]:
