@@ -185,6 +185,7 @@ def list_user(bucket_name):
                     user = parts[0]
     return user
 
+
 def download_s3_folder(bucket_name, s3_folder, local_folder):
     os.makedirs(local_folder, exist_ok=True)
 
@@ -211,10 +212,12 @@ def download_s3_folder(bucket_name, s3_folder, local_folder):
 
             s3_client.download_file(bucket_name, key, local_file_path)
 
+
 def find_fastq_files(folder_path):
     fastq_files = [os.path.join(folder_path, f) for f in os.listdir(folder_path) 
                 if f.endswith('.fastq') or f.endswith('.fastq.gz')]
     return fastq_files
+
 
 def run_breseq_command(folder_path, fwd, rev, output_dir, poly, gbk_file):
     """
