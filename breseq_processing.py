@@ -476,6 +476,7 @@ if __name__ == "__main__":
     folders = list_folders_in_bucket(bucket_name)
     user = list_user(bucket_name)
     output_dir = '/home/ark/MAB/breseq/results'
+    app = "breseq"
 
     seen_folders = load_seen_folders(log_file_path)
 
