@@ -58,11 +58,15 @@ def extract_form_data(folder_path):
                 elif re.search("evolving", line):
                     app = "evolvingstem"
 
-    if fastq_mode == "preset":
-        fwd = f"{fastq_preset}_fwdpaired.fastq.gz"
-        rev = f"{fastq_preset}_revpaired.fastq.gz"
-        fwd_path = os.path.join(preset_dir, fwd)
-        rev_path = os.path.join(preset_dir, rev)
+    if app == "evolvingstem":
+        if fastq_mode == "preset":
+            fwd = f"{fastq_preset}_fwdpaired.fastq.gz"
+            rev = f"{fastq_preset}_revpaired.fastq.gz"
+            fwd_path = os.path.join(preset_dir, fwd)
+            rev_path = os.path.join(preset_dir, rev)
+        else:
+            fwd_path = os.path.join(folder_path, fwd)
+            rev_path = os.path.join(folder_path, rev)
     else:
         fwd_path = os.path.join(folder_path, fwd)
         rev_path = os.path.join(folder_path, rev)
