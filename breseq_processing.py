@@ -32,6 +32,7 @@ app = "breseq"
 preset_dir = "/home/ark/MAB/breseq/fastq_presets"
 
 def extract_form_data(folder_path):
+    app = "breseq"
     form_file = os.path.join(folder_path, "form-data.txt")
     email = reference = accession = poly = species = None
     if os.path.exists(form_file):
