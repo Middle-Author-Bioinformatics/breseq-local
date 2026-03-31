@@ -87,7 +87,7 @@ def extract_form_data(folder_path):
     else:
         referenceFile = "None"
 
-    return email, referenceFile, poly, fwd_path, rev_path
+    return email, referenceFile, poly, fwd_path, rev_path, app
 
 
 def generate_mutation_json(output_dir):
@@ -508,7 +508,7 @@ if __name__ == "__main__":
         download_s3_folder(bucket_name, s3_folder, local_folder)
 
         # Extract form data and send notification email
-        email, referenceFile, poly, fwd, rev = extract_form_data(local_folder)
+        email, referenceFile, poly, fwd, rev, app = extract_form_data(local_folder)
         if email:
             subject = f"Data received for your variant-calling analysis"
             body = (
@@ -694,7 +694,7 @@ if __name__ == "__main__":
                     download_links.append(f"{os.path.basename(file_path)}: {short_url}")
 
         if email and download_links:
-            if app == "evolvingstem":
+            if app != "evolvingstem":
                 subject = f"Your breseq analysis results are ready!"
                 RETENTION_DAYS = "30"
                 body = (
