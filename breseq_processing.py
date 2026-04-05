@@ -166,12 +166,10 @@ def list_folders_in_bucket(bucket_name):
             key = obj["Key"]
             if key.endswith("form-data.txt"):
                 parts = key.split('/')
-                print(f"Processing key: {key}")
                 if len(parts) >= 3:
                     user = parts[0]
                     subfolder = parts[1]
                     if user in users:
-                        print(user)
                         folders.add(f"{user}/{subfolder}/")
     return sorted(folders)
 
@@ -474,8 +472,8 @@ if __name__ == "__main__":
     bucket_name = 'breseqappbucket'
     local_base_dir = '/home/ark/MAB/breseq/data'
     folders = list_folders_in_bucket(bucket_name)
-    user = list_user(bucket_name)
-    output_dir = '/home/ark/MAB/breseq/results'
+    # user = list_user(bucket_name)
+    base_output_dir = '/home/ark/MAB/breseq/results'
     app = "breseq"
 
     seen_folders = load_seen_folders(log_file_path)
@@ -497,7 +495,11 @@ if __name__ == "__main__":
 
     # Debugging: Check if folders are retrieved
     print(f"Folders found in bucket: {folders}")
-    print(f"New folders to process: {new_folders}")
+    if new_folders:
+        for folder in new_folders:
+            print(f"[NEW FOLDER] {folder}")
+    else:
+        print("[SCAN] No new folders found")
 
     for s3_folder in new_folders:
         print(f"Processing S3 folder: {s3_folder}")
@@ -510,21 +512,38 @@ if __name__ == "__main__":
         # Extract form data and send notification email
         email, referenceFile, poly, fwd, rev, app = extract_form_data(local_folder)
         if email:
-            subject = f"Data received for your variant-calling analysis"
-            body = (
-                f"Hi,\n\n"
-                "We have received your sequencing data.\n"
-                "You will recieve another email once the results are ready.\n\n"
-                "If you have any questions, feel free to reach out.\n\n"
-                "Best regards,\nEvolvingSTEM Team\n"
-            )
-            sender_email = "binfo@midauthorbio.com"
-            send_email_without_attachment(
-                sender_email=sender_email,
-                recipient_email=email,
-                subject=subject,
-                body=body
-            )
+            if app == "evolvingstem":
+                subject = f"Data received for your variant-calling analysis"
+                body = (
+                    f"Hi,\n\n"
+                    "We have received your sequencing data.\n"
+                    "You will recieve another email once the results are ready.\n\n"
+                    "If you have any questions, feel free to reach out.\n\n"
+                    "Best regards,\nEvolvingSTEM Team\n"
+                )
+                sender_email = "binfo@midauthorbio.com"
+                send_email_without_attachment(
+                    sender_email=sender_email,
+                    recipient_email=email,
+                    subject=subject,
+                    body=body
+                )
+            else:
+                subject = f"Data received for your variant-calling analysis"
+                body = (
+                    f"Hi,\n\n"
+                    "We have received your sequencing data.\n"
+                    "You will recieve another email once the results are ready.\n\n"
+                    "If you have any questions, feel free to reach out.\n\n"
+                    "Best regards,\nMAB Team\n"
+                )
+                sender_email = "binfo@midauthorbio.com"
+                send_email_without_attachment(
+                    sender_email=sender_email,
+                    recipient_email=email,
+                    subject=subject,
+                    body=body
+                )
         else:
             print(f"No valid form-data.txt found or missing email/name in: {local_folder}")
 
@@ -533,7 +552,7 @@ if __name__ == "__main__":
         print(f"FASTQ files found: {fwd, rev}")
 
         # Define output directory
-        output_dir = os.path.join(output_dir, s3_folder)
+        output_dir = os.path.join(base_output_dir, s3_folder)
         # os.system(f"mkdir -p {output_dir}")
         print(f"Output directory path: {output_dir}")
 
@@ -738,6 +757,7 @@ if __name__ == "__main__":
                 body=body
             )
 
+        append_seen_folder(log_file_path, s3_folder)
         print(f"Completed processing for folder: {s3_folder}")
 
     print("All folders processed.")
