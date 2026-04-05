@@ -702,7 +702,7 @@ if __name__ == "__main__":
                         "Your sequencing data has been analyzed and predicted mutations were identified. "
                         "You can access your results by downloading the files below.\n\n"
                         "For convenient browsing, your results will also be available on\n"
-                        "https://breseq.midauthorbio.com/\n"
+                        "https://midauthorbio.com/#breseq\n"
                         f"for {RETENTION_DAYS} days, after which they may be removed from the server.\n\n"
                         "The primary results file is located in the `/output` folder and is called "
                         "`index.html`. You should also review `summary.html` and `marginal.html`.\n\n"
