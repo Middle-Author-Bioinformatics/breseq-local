@@ -25,7 +25,8 @@ speciesDict = {"Pseudomonas fluorescens SBW25": "GCA_931907645.1",
 
 users = ['ark', 'vaughn.cooper', 'jbarrick', 'distdev', 'ammatela',
          'cws43', 'nac209', 'dnelson1', 'frotis', 'foley', 'cruhe1', 'ondecka', 'smueller1',
-         'eostrow', 'gfd5230', 'sls6550', 'mische.holland', 'deckland07', 'dna', 'teralevin', 'dnf10', 'fr980', 'sian.owen']
+         'eostrow', 'gfd5230', 'sls6550', 'mische.holland', 'deckland07',
+         'dna', 'teralevin', 'dnf10', 'fr980', 'sian.owen', 'apurdy', 'ttashjian']
 
 app = "breseq"
 
