@@ -17,6 +17,7 @@ s3_client = boto3.client('s3')
 downloaded_folders = []
 
 log_file_path = '/home/ark/MAB/breseq/processed_folders.log'
+failed_log_file_path = '/home/ark/MAB/breseq/failed_folders.log'
 
 speciesDict = {"Pseudomonas fluorescens SBW25": "GCA_931907645.1",
                 "Escherichia coli K-12 MG1655": "GCA_000005845.2",
@@ -32,6 +33,40 @@ users = ['ark', 'vaughn.cooper', 'jbarrick', 'distdev', 'ammatela',
 app = "breseq"
 
 preset_dir = "/home/ark/MAB/breseq/fastq_presets"
+
+
+def validate_fastq_file(fastq_path):
+    """
+    Basic FASTQ integrity check.
+
+    Returns:
+        (True, None) if valid
+        (False, error_message) if invalid
+    """
+
+    if not fastq_path:
+        return False, "FASTQ path is missing"
+
+    if not os.path.exists(fastq_path):
+        return False, f"FASTQ file does not exist: {fastq_path}"
+
+    if os.path.getsize(fastq_path) == 0:
+        return False, f"FASTQ file is empty: {fastq_path}"
+
+    # For plain FASTQ only. gzipped FASTQs are not line-count checked here.
+    if fastq_path.endswith(".gz"):
+        return True, None
+
+    with open(fastq_path, "r", errors="replace") as f:
+        line_count = sum(1 for _ in f)
+
+    if line_count % 4 != 0:
+        return False, (
+            f"FASTQ appears incomplete/corrupt: {fastq_path}. "
+            f"Line count is {line_count}, which is not divisible by 4."
+        )
+
+    return True, None
 
 def extract_form_data(folder_path):
     app = "breseq"
@@ -277,16 +312,19 @@ def run_breseq_command(folder_path, fwd, rev, output_dir, poly, gbk_file):
     if result.returncode != 0:
         print(f"[breseq] ERROR in {folder_path}")
         print(result.stderr)
-        return
+        return False
 
     # ---- verify output actually exists (prevents cascade failures) ----
     gd_file = os.path.join(output_dir, "output", "output.gd")
     if not os.path.exists(gd_file):
         print(f"[breseq] FAILED — missing output.gd in {output_dir}")
-        return
+        return False
 
     mode = "paired-end" if len(fastq_files) == 2 else "single-end"
     print(f"[breseq] Success ({mode}) → {output_dir}")
+    return True
+
+
 
 def run_samtools_command(output_dir):
     bam_file = os.path.join(output_dir, "data", "reference.bam")
@@ -479,11 +517,16 @@ if __name__ == "__main__":
     app = "breseq"
 
     seen_folders = load_seen_folders(log_file_path)
+    failed_folders = load_seen_folders(failed_log_file_path)
 
     new_folders = []
 
     for s3_folder in folders:
         if s3_folder in seen_folders:
+            continue
+
+        if s3_folder in failed_folders:
+            print(f"[SKIP] Previously failed folder: {s3_folder}")
             continue
 
         existing_result_key = f"{s3_folder}output/index.html"
@@ -553,17 +596,42 @@ if __name__ == "__main__":
         # fastq_files = find_fastq_files(local_folder)
         print(f"FASTQ files found: {fwd, rev}")
 
+        fastq_ok = True
+        fastq_errors = []
+
+        for fastq_path in [fwd, rev]:
+            if fastq_path and fastq_path != "N/A":
+                ok, err = validate_fastq_file(fastq_path)
+                if not ok:
+                    fastq_ok = False
+                    fastq_errors.append(err)
+
+        if not fastq_ok:
+            print("[FASTQ-CHECK] FAILED")
+            for err in fastq_errors:
+                print(f"[FASTQ-CHECK] {err}")
+
+            append_seen_folder(failed_log_file_path, s3_folder)
+            print(f"[FAILED] Added to failed folders log: {s3_folder}")
+
+            continue
+
         # Define output directory
         output_dir = os.path.join(base_output_dir, s3_folder)
         # os.system(f"mkdir -p {output_dir}")
         print(f"Output directory path: {output_dir}")
 
-        # Skip breseq if output_dir already exists
-        if not os.path.exists(output_dir):
-            print("Output directory does not exist. Running Breseq.")
+        breseq_success = False
+
+        gd_file = os.path.join(output_dir, "output", "output.gd")
+
+        # Skip breseq only if real breseq output exists
+        if not os.path.exists(gd_file):
+            print("Valid breseq output not found. Running Breseq.")
+
             if fwd and rev:
                 print("Running breseq with paired-end reads")
-                run_breseq_command(
+                breseq_success = run_breseq_command(
                     local_folder,
                     fwd,
                     rev,
@@ -574,7 +642,7 @@ if __name__ == "__main__":
 
             elif fwd:
                 print("Running breseq with single-end reads")
-                run_breseq_command(
+                breseq_success = run_breseq_command(
                     local_folder,
                     fwd,
                     None,
@@ -585,8 +653,19 @@ if __name__ == "__main__":
 
             else:
                 print("No forward reads found — skipping breseq")
+                append_seen_folder(failed_log_file_path, s3_folder)
+                print(f"[FAILED] Added to failed folders log: {s3_folder}")
+                continue
+
         else:
-            print("Output directory already exists. Skipping Breseq.")
+            print("Valid breseq output found. Skipping Breseq.")
+            breseq_success = True
+
+        if not breseq_success:
+            print(f"[FAILED] breseq failed for {s3_folder}")
+            append_seen_folder(failed_log_file_path, s3_folder)
+            print(f"[FAILED] Added to failed folders log: {s3_folder}")
+            continue
 
         outtar = ''
         # Proceed to mutation extraction and coverage calculations
@@ -662,7 +741,7 @@ if __name__ == "__main__":
             else:
                 print(f"Mutation file not found, skipping upload: {mutation_file}")
 
-            if os.path.exists(coverage_file):
+            if coverage_file and os.path.exists(coverage_file):
                 print(f"Uploading coverage file: {coverage_file}")
                 upload_file_to_s3(bucket_name, s3_folder, coverage_file)
             else:
