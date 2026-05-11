@@ -3,8 +3,6 @@ import os
 import subprocess
 import json
 import re
-import threading
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 # from bs4 import BeautifulSoup
 import pandas as pd
@@ -18,10 +16,6 @@ s3_client = boto3.client('s3')
 # Global list to track downloaded folders
 downloaded_folders = []
 
-MAX_PARALLEL_JOBS = 8
-BRESEQ_THREADS_PER_JOB = 6
-log_lock = threading.Lock()
-
 log_file_path = '/home/ark/MAB/breseq/processed_folders.log'
 failed_log_file_path = '/home/ark/MAB/breseq/failed_folders.log'
 
@@ -34,7 +28,7 @@ users = ['ark', 'vaughn.cooper', 'jbarrick', 'distdev', 'ammatela',
          'cws43', 'nac209', 'dnelson1', 'frotis', 'foley', 'cruhe1', 'ondecka', 'smueller1',
          'eostrow', 'gfd5230', 'sls6550', 'mische.holland', 'deckland07',
          'dna', 'teralevin', 'dnf10', 'fr980', 'sian.owen', 'apurdy', 'ttashjian',
-         'kwetzel', 'shiva.sghpr', 'michael_edgar']
+         'kwetzel', 'shiva.sghpr']
 
 app = "breseq"
 
@@ -196,9 +190,8 @@ def load_seen_folders(log_path):
     return set()
 
 def append_seen_folder(log_path, folder):
-    with log_lock:
-        with open(log_path, 'a') as f:
-            f.write(folder + '\n')
+    with open(log_path, 'a') as f:
+        f.write(folder + '\n')
 
 def list_folders_in_bucket(bucket_name):
     paginator = s3_client.get_paginator('list_objects_v2')
@@ -266,7 +259,7 @@ def find_fastq_files(folder_path):
     return fastq_files
 
 
-def run_breseq_command(folder_path, fwd, rev, output_dir, poly, gbk_file, threads=BRESEQ_THREADS_PER_JOB):
+def run_breseq_command(folder_path, fwd, rev, output_dir, poly, gbk_file):
     """
     Run breseq with either single-end or paired-end reads.
     """
@@ -289,7 +282,7 @@ def run_breseq_command(folder_path, fwd, rev, output_dir, poly, gbk_file, thread
     # ---- build breseq command SAFELY (LIST, not string) ----
     cmd = [
         "breseq",
-        "-j", str(threads),
+        "-j", "12",
         "-l", "70",
         "-o", output_dir,
         "-r", gbk_file,
@@ -515,14 +508,45 @@ def s3_key_exists(bucket_name, key):
         raise
 
 
-def process_s3_folder(s3_folder, bucket_name, local_base_dir, base_output_dir):
-    """
-    Process one S3 submission folder end-to-end.
+if __name__ == "__main__":
+    bucket_name = 'breseqappbucket'
+    local_base_dir = '/home/ark/MAB/breseq/data'
+    folders = list_folders_in_bucket(bucket_name)
+    # user = list_user(bucket_name)
+    base_output_dir = '/home/ark/MAB/breseq/results'
+    app = "breseq"
 
-    This function is designed to be run concurrently by ThreadPoolExecutor.
-    Each invocation uses unique local/output paths derived from s3_folder.
-    """
-    try:
+    seen_folders = load_seen_folders(log_file_path)
+    failed_folders = load_seen_folders(failed_log_file_path)
+
+    new_folders = []
+
+    for s3_folder in folders:
+        if s3_folder in seen_folders:
+            continue
+
+        if s3_folder in failed_folders:
+            print(f"[SKIP] Previously failed folder: {s3_folder}")
+            continue
+
+        existing_result_key = f"{s3_folder}output/index.html"
+
+        if s3_key_exists(bucket_name, existing_result_key):
+            print(f"[SKIP] Found existing S3 results for {s3_folder} at s3://{bucket_name}/{existing_result_key}")
+            append_seen_folder(log_file_path, s3_folder)
+            continue
+
+        new_folders.append(s3_folder)
+
+    # Debugging: Check if folders are retrieved
+    print(f"Folders found in bucket: {folders}")
+    if new_folders:
+        for folder in new_folders:
+            print(f"[NEW FOLDER] {folder}")
+    else:
+        print("[SCAN] No new folders found")
+
+    for s3_folder in new_folders:
         print(f"Processing S3 folder: {s3_folder}")
 
         local_folder = os.path.join(local_base_dir, s3_folder)
@@ -568,6 +592,7 @@ def process_s3_folder(s3_folder, bucket_name, local_base_dir, base_output_dir):
         else:
             print(f"No valid form-data.txt found or missing email/name in: {local_folder}")
 
+
         # fastq_files = find_fastq_files(local_folder)
         print(f"FASTQ files found: {fwd, rev}")
 
@@ -588,7 +613,8 @@ def process_s3_folder(s3_folder, bucket_name, local_base_dir, base_output_dir):
 
             append_seen_folder(failed_log_file_path, s3_folder)
             print(f"[FAILED] Added to failed folders log: {s3_folder}")
-            return False
+
+            continue
 
         # Define output directory
         output_dir = os.path.join(base_output_dir, s3_folder)
@@ -611,8 +637,7 @@ def process_s3_folder(s3_folder, bucket_name, local_base_dir, base_output_dir):
                     rev,
                     output_dir,
                     poly,
-                    referenceFile,
-                    threads=BRESEQ_THREADS_PER_JOB
+                    referenceFile
                 )
 
             elif fwd:
@@ -623,15 +648,14 @@ def process_s3_folder(s3_folder, bucket_name, local_base_dir, base_output_dir):
                     None,
                     output_dir,
                     poly,
-                    referenceFile,
-                    threads=BRESEQ_THREADS_PER_JOB
+                    referenceFile
                 )
 
             else:
                 print("No forward reads found — skipping breseq")
                 append_seen_folder(failed_log_file_path, s3_folder)
                 print(f"[FAILED] Added to failed folders log: {s3_folder}")
-                return False
+                continue
 
         else:
             print("Valid breseq output found. Skipping Breseq.")
@@ -641,7 +665,7 @@ def process_s3_folder(s3_folder, bucket_name, local_base_dir, base_output_dir):
             print(f"[FAILED] breseq failed for {s3_folder}")
             append_seen_folder(failed_log_file_path, s3_folder)
             print(f"[FAILED] Added to failed folders log: {s3_folder}")
-            return False
+            continue
 
         outtar = ''
         # Proceed to mutation extraction and coverage calculations
@@ -816,91 +840,7 @@ def process_s3_folder(s3_folder, bucket_name, local_base_dir, base_output_dir):
 
         append_seen_folder(log_file_path, s3_folder)
         print(f"Completed processing for folder: {s3_folder}")
-        return True
-
-    except Exception as exc:
-        print(f"[FAILED] Unexpected error while processing {s3_folder}: {exc}")
-        append_seen_folder(failed_log_file_path, s3_folder)
-        print(f"[FAILED] Added to failed folders log: {s3_folder}")
-        return False
-
-
-if __name__ == "__main__":
-    bucket_name = 'breseqappbucket'
-    local_base_dir = '/home/ark/MAB/breseq/data'
-    folders = list_folders_in_bucket(bucket_name)
-    # user = list_user(bucket_name)
-    base_output_dir = '/home/ark/MAB/breseq/results'
-    app = "breseq"
-
-    seen_folders = load_seen_folders(log_file_path)
-    failed_folders = load_seen_folders(failed_log_file_path)
-
-    new_folders = []
-
-    for s3_folder in folders:
-        if s3_folder in seen_folders:
-            continue
-
-        if s3_folder in failed_folders:
-            print(f"[SKIP] Previously failed folder: {s3_folder}")
-            continue
-
-        existing_result_key = f"{s3_folder}output/index.html"
-
-        if s3_key_exists(bucket_name, existing_result_key):
-            print(f"[SKIP] Found existing S3 results for {s3_folder} at s3://{bucket_name}/{existing_result_key}")
-            append_seen_folder(log_file_path, s3_folder)
-            continue
-
-        new_folders.append(s3_folder)
-
-    # Debugging: Check if folders are retrieved
-    print(f"Folders found in bucket: {folders}")
-    if new_folders:
-        for folder in new_folders:
-            print(f"[NEW FOLDER] {folder}")
-    else:
-        print("[SCAN] No new folders found")
-
-    if new_folders:
-        print(
-            f"[PARALLEL] Processing {len(new_folders)} folder(s) "
-            f"with up to {MAX_PARALLEL_JOBS} concurrent job(s); "
-            f"each breseq job uses {BRESEQ_THREADS_PER_JOB} thread(s)."
-        )
-
-        completed = 0
-        failed = 0
-
-        with ThreadPoolExecutor(max_workers=MAX_PARALLEL_JOBS) as executor:
-            future_to_folder = {
-                executor.submit(
-                    process_s3_folder,
-                    s3_folder,
-                    bucket_name,
-                    local_base_dir,
-                    base_output_dir
-                ): s3_folder
-                for s3_folder in new_folders
-            }
-
-            for future in as_completed(future_to_folder):
-                s3_folder = future_to_folder[future]
-                try:
-                    success = future.result()
-                except Exception as exc:
-                    print(f"[FAILED] Unhandled worker error for {s3_folder}: {exc}")
-                    append_seen_folder(failed_log_file_path, s3_folder)
-                    success = False
-
-                if success:
-                    completed += 1
-                    print(f"[PARALLEL] Completed {s3_folder}")
-                else:
-                    failed += 1
-                    print(f"[PARALLEL] Failed {s3_folder}")
-
-        print(f"[PARALLEL] Completed {completed}; failed {failed}.")
 
     print("All folders processed.")
+
+
