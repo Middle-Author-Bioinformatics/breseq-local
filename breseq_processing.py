@@ -38,7 +38,7 @@ users = ['ark', 'vaughn.cooper', 'jbarrick', 'distdev', 'ammatela',
          'mxm6884', 'yabingli', 'adg223', 'mfn5289',
          'jbg6290', 'Jzs6897', 'aav5319', 'mfi5109', 'nbt5288', 'ejl5653',
          'lff5235', 'lff5235', 'sdl5483', 'Adb344', 'yab87', 'kcm5669', 'ampofomichaelosei',
-         'sls6550', 'akp5549', 'shuchiburad2002', 'amp7390', 'mmv5656', 'jsimasb']
+         'sls6550', 'akp5549', 'shuchiburad2002', 'amp7390', 'mmv5656', 'jsimasb', 'KEL269']
 
 app = "breseq"
 
