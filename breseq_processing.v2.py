@@ -28,6 +28,17 @@ log_lock = threading.Lock()
 log_file_path = '/home/ark/MAB/breseq/processed_folders.log'
 failed_log_file_path = '/home/ark/MAB/breseq/failed_folders.log'
 
+# Two-bucket layout:
+#   INPUT_BUCKET   - the web app uploads run inputs here (reads, reference,
+#                    form-data.txt) under a flat <slug>/ prefix. The tower
+#                    LISTS and DOWNLOADS from here.
+#   RESULTS_BUCKET - the tower WRITES all results here under the SAME <slug>/
+#                    prefix. The web app's results viewer reads from here
+#                    (it needs public ListBucket + GetObject + CORS).
+# Both can be overridden via environment variables.
+INPUT_BUCKET = os.environ.get('BRESEQ_INPUT_BUCKET', 'midauthorbio-breseq-input')
+RESULTS_BUCKET = os.environ.get('BRESEQ_RESULTS_BUCKET', 'midauthorbio-breseq-results')
+
 speciesDict = {"Pseudomonas fluorescens SBW25": "GCA_931907645.1",
                 "Escherichia coli K-12 MG1655": "GCA_000005845.2",
                "Bacillus subtilis 168": "GCA_000009045.1",
@@ -582,16 +593,17 @@ def s3_key_exists(bucket_name, key):
         raise
 
 
-def process_s3_folder(s3_folder, bucket_name, local_base_dir, base_output_dir):
+def process_s3_folder(s3_folder, input_bucket, results_bucket, local_base_dir, base_output_dir):
     """
     Process one S3 submission folder end-to-end.
 
     This function is designed to be run concurrently by ThreadPoolExecutor.
     Each invocation uses unique local/output paths derived from s3_folder.
 
-    Results are written back to the SAME flat slug prefix so the web app's
-    results viewer can read s3://<bucket>/<slug>/output/index.html (plus the
-    summary/marginal HTML, mutation_predictions.json, the tarball, coverage,
+    Inputs are read from `input_bucket`; ALL results are written to
+    `results_bucket` under the SAME flat <slug>/ prefix so the web app's
+    results viewer can read s3://<results_bucket>/<slug>/output/index.html (plus
+    the summary/marginal HTML, mutation_predictions.json, the tarball, coverage,
     averages, BAM/BAI and reference files).
     """
     try:
@@ -600,7 +612,8 @@ def process_s3_folder(s3_folder, bucket_name, local_base_dir, base_output_dir):
         local_folder = os.path.join(local_base_dir, s3_folder)
         print(f"Local folder path: {local_folder}")
 
-        download_s3_folder(bucket_name, s3_folder, local_folder)
+        # Inputs come from the INPUT bucket.
+        download_s3_folder(input_bucket, s3_folder, local_folder)
 
         # Extract form data (no email anymore).
         referenceFile, poly, read_paths, name, extra_flags, app = extract_form_data(local_folder)
@@ -705,7 +718,7 @@ def process_s3_folder(s3_folder, bucket_name, local_base_dir, base_output_dir):
             # the results viewer embeds as index.html / summary.html / marginal.html)
             upload_directory_with_mime(
                 breseq_html_dir,
-                bucket_name,
+                results_bucket,
                 f"{s3_folder}output"
             )
 
@@ -713,35 +726,35 @@ def process_s3_folder(s3_folder, bucket_name, local_base_dir, base_output_dir):
             os.system(f"tar -czf {output_dir.rstrip('/')}.tar.gz -C {output_dir.rstrip('/')} .")
             outtar = f"{output_dir.rstrip('/')}.tar.gz"
             if os.path.exists(outtar):
-                upload_file_to_s3(bucket_name, s3_folder, outtar)
+                upload_file_to_s3(results_bucket, s3_folder, outtar)
 
             if os.path.exists(mutation_file):
                 print(f"Uploading mutation file: {mutation_file}")
-                upload_file_to_s3(bucket_name, s3_folder, mutation_file)
+                upload_file_to_s3(results_bucket, s3_folder, mutation_file)
             else:
                 print(f"Mutation file not found, skipping upload: {mutation_file}")
 
             if coverage_file and os.path.exists(coverage_file):
                 print(f"Uploading coverage file: {coverage_file}")
-                upload_file_to_s3(bucket_name, s3_folder, coverage_file)
+                upload_file_to_s3(results_bucket, s3_folder, coverage_file)
             else:
                 print(f"Coverage file not found, skipping upload: {coverage_file}")
 
             if os.path.exists(averages_file):
                 print(f"Uploading averages file: {averages_file}")
-                upload_file_to_s3(bucket_name, s3_folder, averages_file)
+                upload_file_to_s3(results_bucket, s3_folder, averages_file)
             else:
                 print(f"Averages file not found, skipping upload: {averages_file}")
 
             if os.path.exists(bam_file):
                 print(f"Uploading BAM file: {bam_file}")
-                upload_file_to_s3(bucket_name, s3_folder, bam_file)
+                upload_file_to_s3(results_bucket, s3_folder, bam_file)
             else:
                 print(f"BAM file not found, skipping upload: {bam_file}")
 
             if os.path.exists(bai_file):
                 print(f"Uploading BAI file: {bai_file}")
-                upload_file_to_s3(bucket_name, s3_folder, bai_file)
+                upload_file_to_s3(results_bucket, s3_folder, bai_file)
             else:
                 print(f"BAI file not found, skipping upload: {bai_file}")
 
@@ -750,8 +763,8 @@ def process_s3_folder(s3_folder, bucket_name, local_base_dir, base_output_dir):
                 print(f"Preparing and uploading reference files based on: {contigsFile}")
                 subprocess.run(["samtools", "faidx", contigsFile], check=True)
                 contigsIndex = contigsFile + ".fai"
-                upload_file_to_s3(bucket_name, s3_folder, contigsFile)
-                upload_file_to_s3(bucket_name, s3_folder, contigsIndex)
+                upload_file_to_s3(results_bucket, s3_folder, contigsFile)
+                upload_file_to_s3(results_bucket, s3_folder, contigsIndex)
             else:
                 print(f"Contigs file not found, skipping upload: {contigsFile}")
 
@@ -774,11 +787,15 @@ def process_s3_folder(s3_folder, bucket_name, local_base_dir, base_output_dir):
 
 
 if __name__ == "__main__":
-    bucket_name = 'midauthorbio-breseq-input'
+    input_bucket = INPUT_BUCKET        # midauthorbio-breseq-input  (read inputs)
+    results_bucket = RESULTS_BUCKET    # midauthorbio-breseq-results (write results)
     local_base_dir = '/home/ark/MAB/breseq/data'
-    folders = list_folders_in_bucket(bucket_name)
+    folders = list_folders_in_bucket(input_bucket)
     base_output_dir = '/home/ark/MAB/breseq/results'
     app = "breseq"
+
+    print(f"[CONFIG] input bucket  = {input_bucket}")
+    print(f"[CONFIG] results bucket = {results_bucket}")
 
     seen_folders = load_seen_folders(log_file_path)
     failed_folders = load_seen_folders(failed_log_file_path)
@@ -793,17 +810,18 @@ if __name__ == "__main__":
             print(f"[SKIP] Previously failed folder: {s3_folder}")
             continue
 
+        # Results live in the RESULTS bucket now; check there for an existing run.
         existing_result_key = f"{s3_folder}output/index.html"
 
-        if s3_key_exists(bucket_name, existing_result_key):
-            print(f"[SKIP] Found existing S3 results for {s3_folder} at s3://{bucket_name}/{existing_result_key}")
+        if s3_key_exists(results_bucket, existing_result_key):
+            print(f"[SKIP] Found existing results for {s3_folder} at s3://{results_bucket}/{existing_result_key}")
             append_seen_folder(log_file_path, s3_folder)
             continue
 
         new_folders.append(s3_folder)
 
     # Debugging: Check if folders are retrieved
-    print(f"Folders found in bucket: {folders}")
+    print(f"Folders found in input bucket: {folders}")
     if new_folders:
         for folder in new_folders:
             print(f"[NEW FOLDER] {folder}")
@@ -825,7 +843,8 @@ if __name__ == "__main__":
                 executor.submit(
                     process_s3_folder,
                     s3_folder,
-                    bucket_name,
+                    input_bucket,
+                    results_bucket,
                     local_base_dir,
                     base_output_dir
                 ): s3_folder
@@ -851,6 +870,3 @@ if __name__ == "__main__":
         print(f"[PARALLEL] Completed {completed}; failed {failed}.")
 
     print("All folders processed.")
-
-
-
