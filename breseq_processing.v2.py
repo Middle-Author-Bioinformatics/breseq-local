@@ -774,7 +774,7 @@ def process_s3_folder(s3_folder, bucket_name, local_base_dir, base_output_dir):
 
 
 if __name__ == "__main__":
-    bucket_name = 'breseqappbucket'
+    bucket_name = 'midauthorbio-breseq-input'
     local_base_dir = '/home/ark/MAB/breseq/data'
     folders = list_folders_in_bucket(bucket_name)
     base_output_dir = '/home/ark/MAB/breseq/results'
