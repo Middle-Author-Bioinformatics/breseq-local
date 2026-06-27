@@ -203,6 +203,12 @@ def extract_form_data(folder_path):
         name          : str   run name for breseq -n (may be "")
         extra_flags   : list  validated advanced breseq flags
         app           : str   "breseq" (kept for compatibility)
+        sample_specs  : list  one dict per sample, each:
+                                {"label": <display label>,
+                                 "key":   <fs/url-safe label>,
+                                 "reads": [<abs r1>, <abs r2?>]}
+                              Each sample is run as its OWN breseq job so the
+                              results viewer can toggle between samples.
     """
     app = "breseq"
     form_file = os.path.join(folder_path, "form-data.txt")
@@ -269,6 +275,27 @@ def extract_form_data(folder_path):
 
     read_paths = [os.path.join(folder_path, n) for n in read_names]
 
+    # ---- Build per-sample specs (each runs as its own breseq job) ----------
+    # Prefer the explicit Sample: lines. If none were given, treat the whole
+    # submission as a single sample (back-compat with older single-sample runs).
+    sample_specs = []
+    if samples:
+        used_keys = set()
+        for idx, (label, r1, r2) in enumerate(samples):
+            disp = (label or f"sample{idx + 1}").strip()
+            key = _safe_sample_key(disp, idx, used_keys)
+            reads = [os.path.join(folder_path, r1)]
+            if r2 and r2 != "N/A":
+                reads.append(os.path.join(folder_path, r2))
+            sample_specs.append({"label": disp, "key": key, "reads": reads})
+    elif read_paths:
+        disp = (name or "sample1").strip() or "sample1"
+        sample_specs.append({
+            "label": disp,
+            "key": _safe_sample_key(disp, 0, set()),
+            "reads": read_paths,
+        })
+
     # ---- Resolve the reference ---------------------------------------------
     if reference and reference != "N/A":
         referenceFile = os.path.join(folder_path, reference)
@@ -284,7 +311,24 @@ def extract_form_data(folder_path):
 
     extra_flags = _sanitize_flags(raw_flags)
 
-    return referenceFile, poly, read_paths, name, extra_flags, app
+    return referenceFile, poly, read_paths, name, extra_flags, app, sample_specs
+
+
+def _safe_sample_key(label, idx, used_keys):
+    """Turn a sample label into a filesystem/URL-safe, unique sub-prefix key.
+
+    e.g. "A 2019/1" -> "A_2019_1". Falls back to sample<idx+1> and de-dupes.
+    """
+    key = re.sub(r"[^A-Za-z0-9._-]+", "_", (label or "").strip()).strip("_")
+    if not key:
+        key = f"sample{idx + 1}"
+    base = key
+    n = 2
+    while key in used_keys:
+        key = f"{base}_{n}"
+        n += 1
+    used_keys.add(key)
+    return key
 
 
 def _parse_sample_value(value):
@@ -593,18 +637,124 @@ def s3_key_exists(bucket_name, key):
         raise
 
 
+def _process_one_sample(sample, s3_folder, results_bucket, referenceFile, poly,
+                        name, extra_flags, local_base_dir, base_output_dir):
+    """Run breseq for ONE sample and upload its results to a per-sample sub-prefix.
+
+    Results land at:
+        <slug>/<sample_key>/output/index.html   (+ summary.html, marginal.html, ...)
+        <slug>/<sample_key>/mutation_predictions.json
+        <slug>/<sample_key>/<sample_key>.tar.gz
+        <slug>/<sample_key>/coverage.txt, averages.csv, reference.bam(.bai), reference.fasta(.fai)
+
+    Returns True on success, False on failure (the run as a whole can still
+    succeed if at least one sample succeeds).
+    """
+    key = sample["key"]
+    label = sample["label"]
+    reads = sample["reads"]
+
+    # Per-sample S3 prefix and local output dir.
+    sample_prefix = f"{s3_folder}{key}"               # e.g. "AbCd1234/A_2019_1"
+    output_dir = os.path.join(base_output_dir, s3_folder, key)
+    print(f"[sample:{key}] reads={reads}")
+    print(f"[sample:{key}] output_dir={output_dir}")
+
+    # ---- validate this sample's reads ----
+    for fastq_path in reads:
+        ok, err = validate_fastq_file(fastq_path)
+        if not ok:
+            print(f"[sample:{key}] FASTQ check failed: {err}")
+            return False
+    if not reads:
+        print(f"[sample:{key}] no reads")
+        return False
+
+    gd_file = os.path.join(output_dir, "output", "output.gd")
+    if not os.path.exists(gd_file):
+        print(f"[sample:{key}] Running breseq.")
+        ok = run_breseq_command(
+            os.path.dirname(reads[0]),
+            reads,
+            output_dir,
+            poly,
+            referenceFile,
+            name=(name or label),
+            extra_flags=extra_flags,
+            threads=BRESEQ_THREADS_PER_JOB,
+        )
+        if not ok:
+            print(f"[sample:{key}] breseq FAILED")
+            return False
+    else:
+        print(f"[sample:{key}] Existing breseq output found; skipping breseq.")
+
+    if not os.path.exists(output_dir):
+        print(f"[sample:{key}] output dir missing after run")
+        return False
+
+    # ---- mutation JSON ----
+    mutation_file = os.path.join(output_dir, "mutation_predictions.json")
+    if not os.path.exists(mutation_file):
+        generate_mutation_json(output_dir)
+
+    # ---- coverage + averages ----
+    coverage_file = run_samtools_command(output_dir)
+    averages_file = os.path.join(output_dir, "averages.csv")
+    if coverage_file:
+        calculate_coverage_averages(coverage_file, output_dir)
+
+    bam_file = os.path.join(output_dir, "data", "reference.bam")
+    bai_file = os.path.join(output_dir, "data", "reference.bam.bai")
+
+    # ---- upload this sample's results to <slug>/<key>/... ----
+    print(f"[sample:{key}] Uploading results to s3://{results_bucket}/{sample_prefix}/")
+    breseq_html_dir = os.path.join(output_dir, "output")
+    if os.path.isdir(breseq_html_dir):
+        upload_directory_with_mime(breseq_html_dir, results_bucket, f"{sample_prefix}/output")
+
+    # single downloadable tarball of this sample's output
+    tar_path = f"{output_dir.rstrip('/')}.tar.gz"
+    os.system(f"tar -czf {tar_path} -C {output_dir.rstrip('/')} .")
+    if os.path.exists(tar_path):
+        upload_file_to_s3(results_bucket, f"{sample_prefix}/", tar_path)
+
+    for f in (mutation_file, coverage_file, averages_file, bam_file, bai_file):
+        if f and os.path.exists(f):
+            upload_file_to_s3(results_bucket, f"{sample_prefix}/", f)
+
+    contigsFile = os.path.join(output_dir, "data", "reference.fasta")
+    if os.path.exists(contigsFile):
+        try:
+            subprocess.run(["samtools", "faidx", contigsFile], check=True)
+        except Exception as e:
+            print(f"[sample:{key}] faidx failed: {e}")
+        upload_file_to_s3(results_bucket, f"{sample_prefix}/", contigsFile)
+        contigsIndex = contigsFile + ".fai"
+        if os.path.exists(contigsIndex):
+            upload_file_to_s3(results_bucket, f"{sample_prefix}/", contigsIndex)
+
+    print(f"[sample:{key}] DONE")
+    return True
+
+
 def process_s3_folder(s3_folder, input_bucket, results_bucket, local_base_dir, base_output_dir):
     """
     Process one S3 submission folder end-to-end.
 
-    This function is designed to be run concurrently by ThreadPoolExecutor.
-    Each invocation uses unique local/output paths derived from s3_folder.
+    Each SAMPLE in the submission is run as its OWN breseq job. Inputs are read
+    from `input_bucket`; results are written to `results_bucket` under a
+    PER-SAMPLE sub-prefix:
 
-    Inputs are read from `input_bucket`; ALL results are written to
-    `results_bucket` under the SAME flat <slug>/ prefix so the web app's
-    results viewer can read s3://<results_bucket>/<slug>/output/index.html (plus
-    the summary/marginal HTML, mutation_predictions.json, the tarball, coverage,
-    averages, BAM/BAI and reference files).
+        <slug>/<sample_key>/output/index.html
+        <slug>/<sample_key>/mutation_predictions.json
+        <slug>/<sample_key>/...
+
+    A manifest is written to <slug>/samples.json so the web app's results viewer
+    can offer a toggle between samples:
+
+        {"samples": [{"label": "A_2019_1", "key": "A_2019_1"},
+                     {"label": "ST_2019_2", "key": "ST_2019_2"}]}
     """
     try:
         print(f"Processing S3 folder: {s3_folder}")
@@ -615,168 +765,60 @@ def process_s3_folder(s3_folder, input_bucket, results_bucket, local_base_dir, b
         # Inputs come from the INPUT bucket.
         download_s3_folder(input_bucket, s3_folder, local_folder)
 
-        # Extract form data (no email anymore).
-        referenceFile, poly, read_paths, name, extra_flags, app = extract_form_data(local_folder)
+        # Extract form data (no email anymore); now returns per-sample specs.
+        referenceFile, poly, read_paths, name, extra_flags, app, sample_specs = \
+            extract_form_data(local_folder)
 
-        print(f"Reads: {read_paths}")
         print(f"Reference: {referenceFile} | poly: {poly} | name: {name!r} | flags: {extra_flags}")
+        print(f"Samples: {[s['key'] for s in sample_specs]}")
 
-        # ---- validate every read file ----
-        fastq_ok = True
-        fastq_errors = []
-        for fastq_path in read_paths:
-            ok, err = validate_fastq_file(fastq_path)
-            if not ok:
-                fastq_ok = False
-                fastq_errors.append(err)
-
-        if not read_paths:
-            fastq_ok = False
-            fastq_errors.append("No read files listed in form-data.txt")
-
-        if not fastq_ok:
-            print("[FASTQ-CHECK] FAILED")
-            for err in fastq_errors:
-                print(f"[FASTQ-CHECK] {err}")
+        if not sample_specs:
+            print("[FAILED] No samples / reads found in form-data.txt")
             append_seen_folder(failed_log_file_path, s3_folder)
-            print(f"[FAILED] Added to failed folders log: {s3_folder}")
             return False
 
-        # Define output directory
-        output_dir = os.path.join(base_output_dir, s3_folder)
-        print(f"Output directory path: {output_dir}")
-
-        breseq_success = False
-        gd_file = os.path.join(output_dir, "output", "output.gd")
-
-        # Skip breseq only if real breseq output exists
-        if not os.path.exists(gd_file):
-            print("Valid breseq output not found. Running Breseq.")
-            breseq_success = run_breseq_command(
-                local_folder,
-                read_paths,
-                output_dir,
-                poly,
-                referenceFile,
-                name=name,
-                extra_flags=extra_flags,
-                threads=BRESEQ_THREADS_PER_JOB
-            )
-        else:
-            print("Valid breseq output found. Skipping Breseq.")
-            breseq_success = True
-
-        if not breseq_success:
-            print(f"[FAILED] breseq failed for {s3_folder}")
+        if referenceFile == "None" or not os.path.exists(referenceFile):
+            print(f"[FAILED] Reference not available: {referenceFile}")
             append_seen_folder(failed_log_file_path, s3_folder)
-            print(f"[FAILED] Added to failed folders log: {s3_folder}")
             return False
 
-        outtar = ''
-        # Proceed to mutation extraction and coverage calculations
-        if os.path.exists(output_dir):
-            print(f"Processing output directory: {output_dir}")
-
-            # Mutation file extraction (from breseq output.gd → JSON)
-            mutation_file = os.path.join(output_dir, "mutation_predictions.json")
-
-            if not os.path.exists(mutation_file):
-                print("[mutation-json] Missing → generating from output.gd")
-                success = generate_mutation_json(output_dir)
-                if not success:
-                    print("[mutation-json] FAILED to generate mutation JSON")
-            else:
-                print(f"[mutation-json] Found existing mutation file: {mutation_file}")
-
-            # Coverage file processing
-            coverage_file = run_samtools_command(output_dir)
-            if coverage_file and os.path.exists(coverage_file):
-                print(f"Coverage file exists: {coverage_file}")
-            else:
-                print(f"Coverage file does not exist: {coverage_file}")
-
-            # Averages file creation
-            averages_file = os.path.join(output_dir, "averages.csv")
-            if coverage_file:
-                calculate_coverage_averages(coverage_file, output_dir)
-                if os.path.exists(averages_file):
-                    print(f"Averages file exists: {averages_file}")
-                else:
-                    print(f"Averages file does not exist: {averages_file}")
-
-            bam_file = os.path.join(output_dir, "data", "reference.bam")
-            print(f"BAM file {'exists' if os.path.exists(bam_file) else 'does not exist'}: {bam_file}")
-
-            bai_file = os.path.join(output_dir, "data", "reference.bam.bai")
-            print(f"BAI file {'exists' if os.path.exists(bai_file) else 'does not exist'}: {bai_file}")
-
-            # ---- Upload results back to the SAME flat slug prefix ----
-            print("Starting upload to S3...")
-            breseq_html_dir = os.path.join(output_dir, "output")
-
-            # output/ subtree -> <slug>/output/...  (served inline; this is what
-            # the results viewer embeds as index.html / summary.html / marginal.html)
-            upload_directory_with_mime(
-                breseq_html_dir,
-                results_bucket,
-                f"{s3_folder}output"
+        # ---- run each sample independently ----
+        succeeded = []
+        for sample in sample_specs:
+            ok = _process_one_sample(
+                sample, s3_folder, results_bucket, referenceFile, poly,
+                name, extra_flags, local_base_dir, base_output_dir,
             )
+            if ok:
+                succeeded.append(sample)
 
-            # compress the whole output folder for a single downloadable artifact
-            os.system(f"tar -czf {output_dir.rstrip('/')}.tar.gz -C {output_dir.rstrip('/')} .")
-            outtar = f"{output_dir.rstrip('/')}.tar.gz"
-            if os.path.exists(outtar):
-                upload_file_to_s3(results_bucket, s3_folder, outtar)
+        if not succeeded:
+            print(f"[FAILED] All samples failed for {s3_folder}")
+            append_seen_folder(failed_log_file_path, s3_folder)
+            return False
 
-            if os.path.exists(mutation_file):
-                print(f"Uploading mutation file: {mutation_file}")
-                upload_file_to_s3(results_bucket, s3_folder, mutation_file)
-            else:
-                print(f"Mutation file not found, skipping upload: {mutation_file}")
-
-            if coverage_file and os.path.exists(coverage_file):
-                print(f"Uploading coverage file: {coverage_file}")
-                upload_file_to_s3(results_bucket, s3_folder, coverage_file)
-            else:
-                print(f"Coverage file not found, skipping upload: {coverage_file}")
-
-            if os.path.exists(averages_file):
-                print(f"Uploading averages file: {averages_file}")
-                upload_file_to_s3(results_bucket, s3_folder, averages_file)
-            else:
-                print(f"Averages file not found, skipping upload: {averages_file}")
-
-            if os.path.exists(bam_file):
-                print(f"Uploading BAM file: {bam_file}")
-                upload_file_to_s3(results_bucket, s3_folder, bam_file)
-            else:
-                print(f"BAM file not found, skipping upload: {bam_file}")
-
-            if os.path.exists(bai_file):
-                print(f"Uploading BAI file: {bai_file}")
-                upload_file_to_s3(results_bucket, s3_folder, bai_file)
-            else:
-                print(f"BAI file not found, skipping upload: {bai_file}")
-
-            contigsFile = os.path.join(output_dir, "data", "reference.fasta")
-            if os.path.exists(contigsFile):
-                print(f"Preparing and uploading reference files based on: {contigsFile}")
-                subprocess.run(["samtools", "faidx", contigsFile], check=True)
-                contigsIndex = contigsFile + ".fai"
-                upload_file_to_s3(results_bucket, s3_folder, contigsFile)
-                upload_file_to_s3(results_bucket, s3_folder, contigsIndex)
-            else:
-                print(f"Contigs file not found, skipping upload: {contigsFile}")
-
-        else:
-            print(f"Output directory not found, skipping further processing for: {s3_folder}")
-
-        # Cleanup: delete the local folder after processing (commented out for testing)
-        # import shutil
-        # shutil.rmtree(local_folder)
+        # ---- write the samples manifest the viewer reads ----
+        manifest = {
+            "slug": s3_folder.rstrip("/"),
+            "run_name": name,
+            "samples": [{"label": s["label"], "key": s["key"]} for s in succeeded],
+        }
+        manifest_path = os.path.join(base_output_dir, s3_folder, "samples.json")
+        os.makedirs(os.path.dirname(manifest_path), exist_ok=True)
+        with open(manifest_path, "w") as mf:
+            json.dump(manifest, mf, indent=2)
+        # upload to <slug>/samples.json  (inline JSON)
+        s3_client.upload_file(
+            Filename=manifest_path,
+            Bucket=results_bucket,
+            Key=f"{s3_folder}samples.json",
+            ExtraArgs={"ContentType": "application/json", "ContentDisposition": "inline"},
+        )
+        print(f"[manifest] Wrote samples.json with {len(succeeded)} sample(s)")
 
         append_seen_folder(log_file_path, s3_folder)
-        print(f"Completed processing for folder: {s3_folder}")
+        print(f"Completed processing for folder: {s3_folder} "
+              f"({len(succeeded)}/{len(sample_specs)} samples ok)")
         return True
 
     except Exception as exc:
@@ -810,8 +852,10 @@ if __name__ == "__main__":
             print(f"[SKIP] Previously failed folder: {s3_folder}")
             continue
 
-        # Results live in the RESULTS bucket now; check there for an existing run.
-        existing_result_key = f"{s3_folder}output/index.html"
+        # A run is "done" once its per-sample manifest exists in the RESULTS
+        # bucket (samples.json is written only after at least one sample
+        # completed and uploaded).
+        existing_result_key = f"{s3_folder}samples.json"
 
         if s3_key_exists(results_bucket, existing_result_key):
             print(f"[SKIP] Found existing results for {s3_folder} at s3://{results_bucket}/{existing_result_key}")
